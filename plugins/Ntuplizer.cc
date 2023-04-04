@@ -47,6 +47,7 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticleFwd.h"
 
 #include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/HGCalReco/interface/KFHit.h"
 
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
@@ -64,6 +65,8 @@
 #include "Geometry/HGCalGeometry/interface/HGCalGeometry.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
+
+#include "DataFormats/Math/interface/Vector3D.h"
 
 
 //ROOT includes
@@ -128,6 +131,7 @@ private:
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsBHToken_;
   //edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorEMToken_;
   //edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorHADToken_;
+  /*
   edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorKFToken_;
   edm::EDGetTokenT<std::vector<float>> xxKFToken_;
   edm::EDGetTokenT<std::vector<float>> xyKFToken_;
@@ -136,11 +140,15 @@ private:
   edm::EDGetTokenT<std::vector<float>> xxPropToken_;
   edm::EDGetTokenT<std::vector<float>> xyPropToken_;
   edm::EDGetTokenT<std::vector<float>> yyPropToken_;
-  edm::EDGetTokenT<float> abs_failToken_;
   edm::EDGetTokenT<std::vector<int>> chargeKFToken_;
   edm::EDGetTokenT<std::vector<int>> chargePropToken_;
   edm::EDGetTokenT<std::vector<int>> detidKFToken_;
   edm::EDGetTokenT<std::vector<int>> detidPropToken_;
+  */
+  edm::EDGetTokenT<float> abs_failToken_;
+
+  edm::EDGetTokenT<std::vector<KFHit>> KFHitsToken_;
+  edm::EDGetTokenT<std::vector<KFHit>> PropHitsToken_;
  //edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorTrkToken_;
   //edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorTrkEMToken_;
   edm::EDGetTokenT<reco::CaloClusterCollection> hgcalLayerClustersToken_;
@@ -242,23 +250,9 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       hgcalRecHitsEEToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsEE"))),
       hgcalRecHitsFHToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsFH"))),
       hgcalRecHitsBHToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsBH"))),
-      //propagatorEMToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagatorEM"))),
-      //propagatorHADToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagatorHAD"))),
-      propagatorKFToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagatorKF"))),
-      xxKFToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("xxKF"))),
-      xyKFToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("xyKF"))),
-      yyKFToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("yyKF"))),
-      propagatorToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagator"))),
-      xxPropToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("xxProp"))),
-      xyPropToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("xyProp"))),
-      yyPropToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("yyProp"))),
       abs_failToken_(consumes<float>(iConfig.getParameter<edm::InputTag>("abs_fail"))),
-      chargeKFToken_(consumes<std::vector<int>>(iConfig.getParameter<edm::InputTag>("kfcharge"))),
-      chargePropToken_(consumes<std::vector<int>>(iConfig.getParameter<edm::InputTag>("propcharge"))),
-      detidKFToken_(consumes<std::vector<int>>(iConfig.getParameter<edm::InputTag>("kfdetid"))),
-      detidPropToken_(consumes<std::vector<int>>(iConfig.getParameter<edm::InputTag>("propdetid"))),
-      //propagatorTrkToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagatorTrk"))),
-      //propagatorTrkEMToken_(consumes<std::vector<Point3DBase<float,GlobalTag> >>(iConfig.getParameter<edm::InputTag>("propagatorTrkEM"))),
+      KFHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("KFHits"))),
+      PropHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("PropHits"))),
       hgcalLayerClustersToken_(consumes<reco::CaloClusterCollection>(iConfig.getParameter<edm::InputTag>("hgcalLayerClusters"))),
       caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       eta_(iConfig.getParameter<std::string>("eta")),
@@ -341,39 +335,6 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("prop_cov_yy", &prop_cov_yy);
   tree->Branch("prop_evt", &prop_evt);
 
-
-  /*
-  tree->Branch("run"    , &run    , "run/I"    );
-  tree->Branch("event"  , &event  , "event/I"  );
-  tree->Branch("weight" , &weight , "weight/F" );
-  */
-
-  //tree->Branch("proppoints", &proppoints,"x[47]:y[47]:z[47]");
-
-  //tree->Branch("npoints", &npoints,"npoints/I");  
-  //tree->Branch("points", &points,"x[npoints]/F:y[npoints]/F:z[npoints]/F");
-
-  /*
-  tree->Branch("prop_npoints", &prop_npoints, "prop_npoints/I");
-  tree->Branch("prop_x", &prop_x, "prop_x[prop_npoints]/F");
-  tree->Branch("prop_y", &prop_y, "prop_y[prop_npoints]/F");
-  tree->Branch("prop_z", &prop_z, "prop_z[prop_npoints]/F");
-
-  tree->Branch("sim_npoints", &sim_npoints, "sim_npoints/I");
-  tree->Branch("sim_x", &sim_x, "sim_x[sim_npoints]/F");
-  tree->Branch("sim_y", &sim_y, "sim_y[sim_npoints]/F");
-  tree->Branch("sim_z", &sim_z, "sim_z[sim_npoints]/F");
-  */
-
-  /*
-  tree->Branch("rec_npoints", &rec_npoints, "rec_npoints/I");
-  tree->Branch("rec_x", &rec_x, "rec_x[rec_npoints]/F");
-  tree->Branch("rec_y", &rec_y, "rec_y[rec_npoints]/F");
-  tree->Branch("rec_z", &rec_z, "rec_z[rec_npoints]/F");
-
-  */
-
-
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   setupDataToken_ = esConsumes<SetupData, SetupRecord>();
 #endif
@@ -431,18 +392,6 @@ LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd
 
     double varxy = 1/(16*A)*(pow(rmax,4)-pow(rmin,4))*(cos(2*phimin)-cos(2*phimax)) - ex*ey;
     return LocalError(varx, varxy, vary);
-    //std::cout << "Phi: " << phi << "\t DPhi: " << dphi << "\t r:" << rmin << "\t R:" << rmax << "\t varx: " << varx << "\t vary: " << vary<< std::endl;
-
-    /*
-    std::cout<< ddd->getTrFormN()<<std::endl;
-    auto lfb = ddd->getParameter()->layerFrontBH_;
-    for(auto it: lfb){
-      std::cout << it << std::endl;
-    }
-    */
-    //std::cout<<"First: "<<recHitTools_.getScintDEtaDPhi(id).first<<"\t Second: "<<recHitTools_.getScintDEtaDPhi(id).second<<std::endl;
-    //std::cout<< ddd->getParameter()->scintCellSize(recHitTools_.getLayer(id))<<std::endl;
-    //std::cout << ddd->getTypeTrap(recHitTools_.getLayer(id))<<std::endl;
   }
 } 
 
@@ -562,57 +511,18 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(ticlTrackstersMergeToken, ticlTrackstersMerge);
   const std::vector<ticl::Trackster>& tracksters = *ticlTrackstersMerge; 
 
-  edm::Handle<std::vector<Point3DBase<float,GlobalTag>>> propagatorKFHandle;
-  iEvent.getByToken(propagatorKFToken_, propagatorKFHandle);
-  const std::vector<Point3DBase<float,GlobalTag>> &kf = *propagatorKFHandle;
-
-  edm::Handle<std::vector<Point3DBase<float,GlobalTag>>> propagatorHandle;
-  iEvent.getByToken(propagatorToken_, propagatorHandle);
-  const std::vector<Point3DBase<float,GlobalTag>> &prop = *propagatorHandle;
-
-  edm::Handle<std::vector<float>> xxPropHandle;
-  iEvent.getByToken(xxPropToken_, xxPropHandle);
-  const std::vector<float> &xxprop = *xxPropHandle;
-
-  edm::Handle<std::vector<float>> xyPropHandle;
-  iEvent.getByToken(xyPropToken_, xyPropHandle);
-  const std::vector<float> &xyprop = *xyPropHandle;
-
-  edm::Handle<std::vector<float>> yyPropHandle;
-  iEvent.getByToken(yyPropToken_, yyPropHandle);
-  const std::vector<float> &yyprop = *yyPropHandle;
-
-  edm::Handle<std::vector<int>> chargePropHandle;
-  iEvent.getByToken(chargePropToken_, chargePropHandle);
-  const std::vector<int> &chargeprop = *chargePropHandle;
-
-  edm::Handle<std::vector<float>> xxKFHandle;
-  iEvent.getByToken(xxKFToken_, xxKFHandle);
-  const std::vector<float> &xxkf = *xxKFHandle;
-
-  edm::Handle<std::vector<float>> xyKFHandle;
-  iEvent.getByToken(xyKFToken_, xyKFHandle);
-  const std::vector<float> &xykf = *xyKFHandle;
-
-  edm::Handle<std::vector<float>> yyKFHandle;
-  iEvent.getByToken(yyKFToken_, yyKFHandle);
-  const std::vector<float> &yykf = *yyKFHandle;
-
-  edm::Handle<std::vector<int>> detidKFHandle;
-  iEvent.getByToken(detidKFToken_, detidKFHandle);
-  const std::vector<int> &detidkf = *detidKFHandle;
-
-  edm::Handle<std::vector<int>> detidPropHandle;
-  iEvent.getByToken(detidPropToken_, detidPropHandle);
-  const std::vector<int> &detidprop = *detidPropHandle;
-
-  edm::Handle<std::vector<int>> chargeKFHandle;
-  iEvent.getByToken(chargeKFToken_, chargeKFHandle);
-  const std::vector<int> &chargekf = *chargeKFHandle;
-
   edm::Handle<float> abs_failHandle_;
   iEvent.getByToken(abs_failToken_,abs_failHandle_);
   const float &abs_fail = *abs_failHandle_;
+
+  edm::Handle<std::vector<KFHit>> KFHitsHandle;
+  iEvent.getByToken(KFHitsToken_, KFHitsHandle);
+  const std::vector<KFHit> &kfhits = *KFHitsHandle;
+
+  edm::Handle<std::vector<KFHit>> PropHitsHandle;
+  iEvent.getByToken(PropHitsToken_, PropHitsHandle);
+  const std::vector<KFHit> &prophits = *PropHitsHandle;
+
 
   std::map<float, GlobalPoint> map_gps_prop, map_gps_kf;
   std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf, map_xx_prop, map_xy_prop, map_yy_prop;
@@ -621,15 +531,19 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   const CaloGeometry &geom = iSetup.getData(caloGeomToken_);
   recHitTools_.setGeometry(geom);
 
+  // Test KFHits
+
+  std::cout << "Test KFHits" << std::endl;
+  for (const auto& hit: kfhits){
+    std::cout << hit.center.x() << "\t" << hit.center.y() << "\t" << hit.center.z() << "\t" << hit.xx << "\t" << hit.xy << "\t" << hit.yy << "\t" << hit.charge << "\t" << hit.detid << "\t" <<std::endl;
+  }
+  std::cout << "------------------------------------------" << std::endl;
+
   // KF & Propagator 
   for (const auto& pos: positions){
-    auto &gps = (pos=="KF")? kf:prop;
-    auto &cov_xx = (pos=="KF")? xxkf:xxprop;
-    auto &cov_xy = (pos=="KF")? xykf:xyprop;
-    auto &cov_yy = (pos=="KF")? yykf:yyprop;
-    auto &closest_detids = (pos=="KF")? detidkf:detidprop;
+
+    auto &hits = (pos=="KF")? kfhits:prophits;
     auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
-    auto &charge = (pos=="KF")? chargekf:chargeprop;
 
     auto &vec_x = (pos=="KF")? kf_x:prop_x;
     auto &vec_y = (pos=="KF")? kf_y:prop_y;
@@ -643,21 +557,21 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_evt = (pos=="KF")? kf_evt:prop_evt;
     auto &vec_e = (pos=="KF")? kf_e:prop_e;
 
-    for(int i = 0;i<int(gps.size());i++){
+    for(int i = 0;i<int(hits.size());i++){
 
-      std::map<DetId,const HGCRecHit *>::const_iterator itcheck = hitMap.find(closest_detids[i]);
+      std::map<DetId,const HGCRecHit *>::const_iterator itcheck = hitMap.find(hits[i].detid);
       float e = 0;
       if (itcheck != hitMap.end()){
-        e = hitMap[closest_detids[i]]->energy();
+        e = hitMap[hits[i].detid]->energy();
       }
-      unsigned int layer_ = recHitTools_.getLayerWithOffset(closest_detids[i]);
+      unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
 
       std::string detector;
       std::string thickness;
       std::string tmp;
-      if(recHitTools_.isSilicon(closest_detids[i])){
+      if(recHitTools_.isSilicon(hits[i].detid)){
         detector = "Si";
-        thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detids[i]))); 
+        thickness = std::to_string(int(recHitTools_.getSiThickness(hits[i].detid))); 
         tmp = detector+" "+thickness;
       }
       else{
@@ -666,18 +580,17 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         tmp = "Sc";
       } 
 
-      map_gps[gps[i].z()]=gps[i];
-      
-      vec_x.push_back(gps[i].x());
-      vec_y.push_back(gps[i].y());
-      vec_z.push_back(gps[i].z());
+      map_gps[hits[i].center.z()]=hits[i].center;
+      vec_x.push_back(hits[i].center.x());
+      vec_y.push_back(hits[i].center.y());
+      vec_z.push_back(hits[i].center.z());
       vec_e.push_back(e);
-      vec_detid.push_back(closest_detids[i]);
+      vec_detid.push_back(hits[i].detid);
       vec_layer.push_back(layer_);
       vec_dtype.push_back(tmp);
-      vec_cov_xx.push_back(cov_xx[i]);
-      vec_cov_xy.push_back(cov_xy[i]);
-      vec_cov_yy.push_back(cov_yy[i]);
+      vec_cov_xx.push_back(hits[i].xx);
+      vec_cov_xy.push_back(hits[i].xy);
+      vec_cov_yy.push_back(hits[i].yy);
       vec_evt.push_back(eventnr);
     }
   }
