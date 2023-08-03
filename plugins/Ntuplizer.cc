@@ -125,7 +125,6 @@ private:
 
   // ----------member data ---------------------------
   edm::EDGetTokenT<std::vector<CaloParticle>> caloParticlesToken_;
-  edm::EDGetTokenT<std::vector<ticl::Trackster>> ticlTrackstersMergeToken;
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsEEToken_; 
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsFHToken_;
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsBHToken_;
@@ -145,8 +144,6 @@ private:
   edm::EDGetTokenT<std::vector<int>> detidKFToken_;
   edm::EDGetTokenT<std::vector<int>> detidPropToken_;
   */
-  edm::EDGetTokenT<float> abs_failToken_;
-
   edm::EDGetTokenT<std::vector<KFHit>> KFHitsToken_;
   edm::EDGetTokenT<std::vector<KFHit>> PropHitsToken_;
  //edm::EDGetTokenT<std::vector<Point3DBase<float,GlobalTag>>> propagatorTrkToken_;
@@ -180,6 +177,9 @@ private:
   std::vector<int> kf_layer;
   std::vector<std::string> kf_dtype;
   std::vector<int> kf_evt;
+  std::vector<float> kf_eta;
+  std::vector<float> kf_theta;
+
 
   // Propagator
 
@@ -195,6 +195,8 @@ private:
   std::vector<int> prop_layer;
   std::vector<std::string> prop_dtype;
   std::vector<int> prop_evt;
+  std::vector<float> prop_eta;
+  std::vector<float> prop_theta;
 
     // RecHits
 
@@ -211,6 +213,8 @@ private:
   std::vector<int> rec_evt;
   std::vector<int> rec_kf_compatible;
   std::vector<int> rec_prop_compatible;
+  std::vector<int> rec_obj_id;
+  std::vector<int> rec_pid;
 
   // SimHits
 
@@ -227,6 +231,8 @@ private:
   std::vector<int> sim_evt;
   std::vector<int> sim_kf_compatible;
   std::vector<int> sim_prop_compatible;
+  std::vector<int> sim_obj_id;
+  std::vector<int> sim_pid;
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   edm::ESGetToken<SetupData, SetupRecord> setupToken_;
@@ -246,13 +252,12 @@ private:
 //
 Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       caloParticlesToken_(consumes<std::vector<CaloParticle> >(iConfig.getParameter<edm::InputTag>("caloParticles"))), 
-      ticlTrackstersMergeToken(consumes<std::vector<ticl::Trackster> >(iConfig.getParameter<edm::InputTag>("Tracksters"))),
       hgcalRecHitsEEToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsEE"))),
       hgcalRecHitsFHToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsFH"))),
       hgcalRecHitsBHToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsBH"))),
-      abs_failToken_(consumes<float>(iConfig.getParameter<edm::InputTag>("abs_fail"))),
+      //abs_failToken_(consumes<float>(iConfig.getParameter<edm::InputTag>("abs_fail"))),
       KFHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("KFHits"))),
-      PropHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("PropHits"))),
+      //PropHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("PropHits"))),
       hgcalLayerClustersToken_(consumes<reco::CaloClusterCollection>(iConfig.getParameter<edm::InputTag>("hgcalLayerClusters"))),
       caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       eta_(iConfig.getParameter<std::string>("eta")),
@@ -289,8 +294,8 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("sim_evt", &sim_evt);
   tree->Branch("sim_kf_compatible", &sim_kf_compatible);
   tree->Branch("sim_prop_compatible", &sim_prop_compatible);
-  rec_kf_compatible.clear();
-  rec_prop_compatible.clear();
+  tree->Branch("sim_obj_id", &sim_obj_id);
+  tree->Branch("sim_pid", &sim_pid);
 
   // RecHits
 
@@ -307,6 +312,8 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_evt", &rec_evt);
   tree->Branch("rec_kf_compatible", &rec_kf_compatible);
   tree->Branch("rec_prop_compatible", &rec_prop_compatible);
+  tree->Branch("rec_obj_id", &rec_obj_id);
+  tree->Branch("rec_pid", &rec_pid);
 
   // KF
 
@@ -321,6 +328,9 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_cov_xy", &kf_cov_xy);
   tree->Branch("kf_cov_yy", &kf_cov_yy);
   tree->Branch("kf_evt", &kf_evt);
+  tree->Branch("kf_eta", &kf_eta);
+  tree->Branch("kf_theta", &kf_theta);
+
   // Propagator
 
   tree->Branch("prop_x", &prop_x);
@@ -334,6 +344,8 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("prop_cov_xy", &prop_cov_xy);
   tree->Branch("prop_cov_yy", &prop_cov_yy);
   tree->Branch("prop_evt", &prop_evt);
+  tree->Branch("prop_eta", &prop_eta);
+  tree->Branch("prop_theta", &prop_theta);
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   setupDataToken_ = esConsumes<SetupData, SetupRecord>();
@@ -412,6 +424,8 @@ void Ntuplizer::clear_arrays(){
   sim_evt.clear();
   sim_kf_compatible.clear();
   sim_prop_compatible.clear();
+  sim_obj_id.clear();
+  sim_pid.clear();
 
   // RecHit
 
@@ -428,6 +442,8 @@ void Ntuplizer::clear_arrays(){
   rec_evt.clear();
   rec_kf_compatible.clear();
   rec_prop_compatible.clear();
+  rec_obj_id.clear();
+  rec_pid.clear();
 
   // KF
 
@@ -442,6 +458,8 @@ void Ntuplizer::clear_arrays(){
   kf_cov_xy.clear();
   kf_cov_yy.clear();
   kf_evt.clear();
+  kf_eta.clear();
+  kf_theta.clear();
 
   // Prop
 
@@ -455,7 +473,9 @@ void Ntuplizer::clear_arrays(){
   prop_cov_xx.clear();
   prop_cov_xy.clear();
   prop_cov_yy.clear();
-  prop_evt.clear();  
+  prop_evt.clear(); 
+  prop_eta.clear();
+  prop_theta.clear(); 
 }
 
 void Ntuplizer::fillHitMap(std::map<DetId, const HGCRecHit*>& hitMap,
@@ -507,43 +527,47 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   std::map<DetId, const HGCRecHit*> hitMap;
   fillHitMap(hitMap, *recHitHandleEE, *recHitHandleFH, *recHitHandleBH);
 
-  edm::Handle<std::vector<ticl::Trackster>> ticlTrackstersMerge;
-  iEvent.getByToken(ticlTrackstersMergeToken, ticlTrackstersMerge);
-  const std::vector<ticl::Trackster>& tracksters = *ticlTrackstersMerge; 
-
-  edm::Handle<float> abs_failHandle_;
-  iEvent.getByToken(abs_failToken_,abs_failHandle_);
-  const float &abs_fail = *abs_failHandle_;
-
   edm::Handle<std::vector<KFHit>> KFHitsHandle;
   iEvent.getByToken(KFHitsToken_, KFHitsHandle);
   const std::vector<KFHit> &kfhits = *KFHitsHandle;
 
-  edm::Handle<std::vector<KFHit>> PropHitsHandle;
-  iEvent.getByToken(PropHitsToken_, PropHitsHandle);
-  const std::vector<KFHit> &prophits = *PropHitsHandle;
+  //edm::Handle<std::vector<KFHit>> PropHitsHandle;
+  //iEvent.getByToken(PropHitsToken_, PropHitsHandle);
+  //const std::vector<KFHit> &prophits = *PropHitsHandle;
+  const std::vector<KFHit> &prophits = *KFHitsHandle;
 
 
-  std::map<float, GlobalPoint> map_gps_prop, map_gps_kf;
+  //std::map<float, GlobalPoint> map_gps_prop, map_gps_kf;
+  std::map<int, int> map_detid_prop, map_detid_kf;
+
   std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf, map_xx_prop, map_xy_prop, map_yy_prop;
 
-  // init vars
+    // init vars
   const CaloGeometry &geom = iSetup.getData(caloGeomToken_);
   recHitTools_.setGeometry(geom);
 
+  const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(DetId::Detector(10), ForwardSubdetector::ForwardEmpty);
+  auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
+  const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
+  auto radiusLayer = ddd->rangeRLayer(8, true);
+  std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
+
   // Test KFHits
 
+/*
   std::cout << "Test KFHits" << std::endl;
   for (const auto& hit: kfhits){
     std::cout << hit.center.x() << "\t" << hit.center.y() << "\t" << hit.center.z() << "\t" << hit.xx << "\t" << hit.xy << "\t" << hit.yy << "\t" << hit.charge << "\t" << hit.detid << "\t" <<std::endl;
+    std::cout << hit.test[0][0] << "," << hit.test[1][1] << hit.test[2][2] << hit.test[3][3] << hit.test[4][4] << hit.test[5][5] << std::endl;
   }
   std::cout << "------------------------------------------" << std::endl;
-
+*/
   // KF & Propagator 
   for (const auto& pos: positions){
 
     auto &hits = (pos=="KF")? kfhits:prophits;
-    auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+    //auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+    auto &map_detid = (pos=="KF")? map_detid_kf:map_detid_prop;
 
     auto &vec_x = (pos=="KF")? kf_x:prop_x;
     auto &vec_y = (pos=="KF")? kf_y:prop_y;
@@ -555,6 +579,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_cov_xy = (pos=="KF")? kf_cov_xy:prop_cov_xy;
     auto &vec_cov_yy = (pos=="KF")? kf_cov_yy:prop_cov_yy;
     auto &vec_evt = (pos=="KF")? kf_evt:prop_evt;
+    auto &vec_eta = (pos=="KF")? kf_eta:prop_eta;
+    auto &vec_theta = (pos=="KF")? kf_theta:prop_theta;
     auto &vec_e = (pos=="KF")? kf_e:prop_e;
 
     for(int i = 0;i<int(hits.size());i++){
@@ -564,12 +590,29 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       if (itcheck != hitMap.end()){
         e = hitMap[hits[i].detid]->energy();
       }
-      unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
+      //unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
 
       std::string detector;
       std::string thickness;
       std::string tmp;
-      if(recHitTools_.isSilicon(hits[i].detid)){
+      
+      // TODO: if conditions necessary to deal with missing rechits. Not yet possible to determine area of detector properly
+      //       Implement it in such a way that we can find the closest detid and from this determine silicon thickness.
+      if (hits[i].detid==0){
+        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
+        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+        detector = "Sc";
+        thickness = "None";
+        tmp = "Sc";
+      }
+      else if((hits[i].detid==8)||(hits[i].detid==9)){
+        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
+        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+        detector = "Si";
+        //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
+        tmp = detector;
+      }
+      else if (recHitTools_.isSilicon(hits[i].detid)){
         detector = "Si";
         thickness = std::to_string(int(recHitTools_.getSiThickness(hits[i].detid))); 
         tmp = detector+" "+thickness;
@@ -580,28 +623,33 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         tmp = "Sc";
       } 
 
-      map_gps[hits[i].center.z()]=hits[i].center;
+
+      map_detid[i+1]=hits[i].detid;
+      //map_gps[hits[i].center.z()]=hits[i].center;
       vec_x.push_back(hits[i].center.x());
       vec_y.push_back(hits[i].center.y());
       vec_z.push_back(hits[i].center.z());
       vec_e.push_back(e);
       vec_detid.push_back(hits[i].detid);
-      vec_layer.push_back(layer_);
+      vec_layer.push_back(i+1); // 
       vec_dtype.push_back(tmp);
       vec_cov_xx.push_back(hits[i].xx);
       vec_cov_xy.push_back(hits[i].xy);
       vec_cov_yy.push_back(hits[i].yy);
       vec_evt.push_back(eventnr);
+      vec_eta.push_back(hits[i].eta);
+      vec_theta.push_back(hits[i].theta);
     }
   }
 
   // Loop over Caloparticles 
 
   std::vector<DetId> tmprechits_; tmprechits_.clear();
-
+  int obj_id = 0;
   for (const auto& it_cp : cps) {
     // do something with track parameters, e.g, plot the charge.
     const CaloParticle& cp = ((it_cp)); 
+    auto pid = cp.particleId();
     const SimClusterRefVector& simclusters = cp.simClusters();
 
     for (const auto& it_simc : simclusters){
@@ -630,28 +678,40 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
         // LocalError
 
-
         const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(detid_);
         auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
         const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
         auto lerr = calculateLocalError(detid_, ddd); 
 
-        std::cout << "Layer: " << layer_ << "\t XX: " << lerr.xx() << std::endl;
+        // std::cout << "Layer: " << layer_ << "\t XX: " << lerr.xx() << std::endl;
 
         // KF & Propagator 
         int kf_compatible=0;
         int prop_compatible=0;
         for (const auto& pos: positions){
-          auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+          //auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+          auto &map_detid = (pos=="KF")? map_detid_kf:map_detid_prop;
+
           auto &compatible = (pos=="KF")? kf_compatible:prop_compatible;
 
-          auto gp = map_gps[recHitTools_.getPosition(detid_).z()];
+          //auto gp = map_gps[recHitTools_.getPosition(detid_).z()];
           // KF/Propagator compatible?
 
+
+          // Test ID
+
+          int layer = recHitTools_.getLayerWithOffset(detid_);
+          std::cout << layer << ", " << detid_() << ", " << static_cast<uint32_t>(map_detid[layer]) << map_detid[layer] << std::endl; 
+
+          /*
           DetId closest_detid;
           if (detector == "Sc") closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCell(gp);
           else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true);
           if(detid_==closest_detid){
+            compatible=1;
+          }
+          */
+          if (detid_()==static_cast<uint32_t>(map_detid[layer])){
             compatible=1;
           }
         }
@@ -669,6 +729,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_kf_compatible.push_back(kf_compatible);
         sim_prop_compatible.push_back(prop_compatible);
         sim_evt.push_back(eventnr);
+        sim_obj_id.push_back(obj_id);
+        sim_pid.push_back(pid);
 
         if (itcheck != hitMap.end()){
           rec_x.push_back(recHitTools_.getPosition(detid_).x());
@@ -684,12 +746,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_kf_compatible.push_back(kf_compatible);
           rec_prop_compatible.push_back(prop_compatible);
           rec_evt.push_back(eventnr);
+          rec_obj_id.push_back(obj_id);
+          rec_pid.push_back(pid);
         }
       }
     }
+    obj_id++;
   }
-
-  std::cout << "Hits:" << cps.size() << std::endl;
   tree->Fill();
 
   sim_x.clear();
@@ -705,6 +768,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   sim_evt.clear();
   sim_kf_compatible.clear();
   sim_prop_compatible.clear();
+  sim_obj_id.clear();
+  sim_pid.clear();
 
   // RecHit
 
@@ -721,6 +786,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_evt.clear();
   rec_kf_compatible.clear();
   rec_prop_compatible.clear();
+  rec_obj_id.clear();
+  rec_pid.clear();
 
   // KF
 
@@ -735,6 +802,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_cov_xy.clear();
   kf_cov_yy.clear();
   kf_evt.clear();
+  kf_eta.clear();
+  kf_theta.clear();
 
   // Prop
 
@@ -749,6 +818,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   prop_cov_xy.clear();
   prop_cov_yy.clear();
   prop_evt.clear();
+  prop_eta.clear();
+  prop_theta.clear();
   
   //clear_arrays();
   eventnr=eventnr+1;
