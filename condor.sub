@@ -1,5 +1,5 @@
 executable            = run.sh
-arguments             = $(eta) $(energy)
+arguments             = $(eta) $(energy) $(nevents) $(idx) $(root)
 universe              = vanilla
 +JobFlavour = "microcentury"
 should_transfer_files = YES
@@ -10,4 +10,4 @@ error                 = condor/error/create_samples.$(eta).$(energy).err
 log                   = condor/log/create_samples.$(eta).$(energy).log
 MY.XRDCP_CREATE_DIR = True
 
-queue eta, energy from files.txt
+queue eta, energy, nevents, idx, root from files.txt
