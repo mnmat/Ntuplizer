@@ -113,10 +113,11 @@ private:
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
   void clear_arrays();
-  virtual void fillHitMap(std::map<DetId, const HGCRecHit*>& hitMap, 
+  virtual void fillHitMap(std::map<DetId, std::pair<const HGCRecHit*,float>>& hitMap, 
       const HGCRecHitCollection& rechitsEE, 
       const HGCRecHitCollection& rechitsFH,
-      const HGCRecHitCollection& rechitsBH) const;
+      const HGCRecHitCollection& rechitsBH,
+      const std::vector<float>& lcmask) const;
   std::vector<int> matchRecHit2CPRecHits(DetId detid_, std::vector<DetId> rechitdetid_);
   LocalError calculateLocalError(DetId detid_, const HGCalDDDConstants* ddd);
 
@@ -132,6 +133,7 @@ private:
   edm::EDGetTokenT<reco::CaloClusterCollection> hgcalLayerClustersToken_;
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeomToken_;
   edm::EDGetTokenT<edm::View<reco::Track>> tracksToken_;
+  edm::EDGetTokenT<std::vector<float>> lcMaskToken_;
 
 
   TTree *tree = new TTree("tree","tree");
@@ -199,6 +201,8 @@ private:
   std::vector<int> rec_kf_compatible;
   std::vector<int> rec_obj_id;
   std::vector<int> rec_pid;
+  std::vector<float> rec_mask;
+
 
   // SimHits
 
@@ -216,6 +220,8 @@ private:
   std::vector<int> sim_kf_compatible;
   std::vector<int> sim_obj_id;
   std::vector<int> sim_pid;
+  std::vector<float> sim_mask;
+
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   edm::ESGetToken<SetupData, SetupRecord> setupToken_;
@@ -243,6 +249,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       hgcalLayerClustersToken_(consumes<reco::CaloClusterCollection>(iConfig.getParameter<edm::InputTag>("hgcalLayerClusters"))),
       caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       tracksToken_(consumes<edm::View<reco::Track>>(iConfig.getUntrackedParameter<edm::InputTag>("tracks"))),
+      lcMaskToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("lcMask"))),
       eta_(iConfig.getParameter<std::string>("eta")),
       energy_(iConfig.getParameter<std::string>("energy")),
       outdir_(iConfig.getParameter<std::string>("outdir")){
@@ -276,6 +283,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("sim_kf_compatible", &sim_kf_compatible);
   tree->Branch("sim_obj_id", &sim_obj_id);
   tree->Branch("sim_pid", &sim_pid);
+  tree->Branch("sim_mask", &sim_mask);
 
   // RecHits
 
@@ -293,6 +301,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_kf_compatible", &rec_kf_compatible);
   tree->Branch("rec_obj_id", &rec_obj_id);
   tree->Branch("rec_pid", &rec_pid);
+  tree->Branch("rec_mask", &rec_mask);
 
   // KF
 
@@ -397,6 +406,8 @@ void Ntuplizer::clear_arrays(){
   sim_kf_compatible.clear();
   sim_obj_id.clear();
   sim_pid.clear();
+  sim_mask.clear();
+
 
   // RecHit
 
@@ -414,6 +425,8 @@ void Ntuplizer::clear_arrays(){
   rec_kf_compatible.clear();
   rec_obj_id.clear();
   rec_pid.clear();
+  rec_mask.clear();
+
 
   // KF
 
@@ -440,21 +453,26 @@ void Ntuplizer::clear_arrays(){
   track_algo.clear();
 }
 
-void Ntuplizer::fillHitMap(std::map<DetId, const HGCRecHit*>& hitMap,
+void Ntuplizer::fillHitMap(std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap,
                                 const HGCRecHitCollection& rechitsEE,
                                 const HGCRecHitCollection& rechitsFH,
-                                const HGCRecHitCollection& rechitsBH) const {
+                                const HGCRecHitCollection& rechitsBH,
+                                const std::vector<float>& lcmask) const {
   hitMap.clear();
+  int counter = 0;
   for (const auto& hit : rechitsEE) {
-    hitMap.emplace(hit.detid(), &hit);
+    hitMap.emplace(hit.detid(), std::make_pair(&hit, lcmask[counter]));
+    counter++;
   }
 
   for (const auto& hit : rechitsFH) {
-    hitMap.emplace(hit.detid(), &hit);
+    hitMap.emplace(hit.detid(), std::make_pair(&hit, lcmask[counter]));
+    counter++;
   }
 
   for (const auto& hit : rechitsBH) {
-    hitMap.emplace(hit.detid(), &hit);
+    hitMap.emplace(hit.detid(), std::make_pair(&hit, lcmask[counter]));
+    counter++;
   }
 } // end of EfficiencyStudies::fillHitMap
 
@@ -486,8 +504,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   edm::Handle<HGCRecHitCollection> recHitHandleBH;
   iEvent.getByToken(hgcalRecHitsBHToken_, recHitHandleBH);
 
-  std::map<DetId, const HGCRecHit*> hitMap;
-  fillHitMap(hitMap, *recHitHandleEE, *recHitHandleFH, *recHitHandleBH);
+  edm::Handle<std::vector<float>> lcMaskHandle;
+  iEvent.getByToken(lcMaskToken_, lcMaskHandle);
+
+  std::map<DetId, std::pair<const HGCRecHit*, float>> hitMap;
+  fillHitMap(hitMap, *recHitHandleEE, *recHitHandleFH, *recHitHandleBH, *lcMaskHandle);
 
   edm::Handle<std::vector<KFHit>> KFHitsHandle;
   iEvent.getByToken(KFHitsToken_, KFHitsHandle);
@@ -496,6 +517,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   edm::Handle<edm::View<reco::Track>> tracks_h;
   iEvent.getByToken(tracksToken_,tracks_h);
   const edm::View<reco::Track> & tkx = *(tracks_h.product()); 
+
+
 
 
   /*
@@ -538,10 +561,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   for(int i = 0;i<int(kfhits.size());i++){
 
-    std::map<DetId,const HGCRecHit *>::const_iterator itcheck = hitMap.find(kfhits[i].detid);
+    std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(kfhits[i].detid);
     float e = 0;
     if (itcheck != hitMap.end()){
-      e = hitMap[kfhits[i].detid]->energy();
+      e = hitMap[kfhits[i].detid].first->energy();
     }
     //unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
 
@@ -625,7 +648,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       for (const auto& it_sc_hae : sc_hae){
 
         DetId detid_ = (it_sc_hae.first);
-        std::map<DetId,const HGCRecHit *>::const_iterator itcheck = hitMap.find(detid_);
+        std::map<DetId,std::pair<const HGCRecHit *, float>>::const_iterator itcheck = hitMap.find(detid_);
         unsigned int layer_ = recHitTools_.getLayerWithOffset(detid_);
 
         std::string detector;
@@ -672,6 +695,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         }
         */
         
+        std::cout << (itcheck->second) << std::endl;
+
         sim_x.push_back(recHitTools_.getPosition(detid_).x());
         sim_y.push_back(recHitTools_.getPosition(detid_).y());
         sim_z.push_back(recHitTools_.getPosition(detid_).z());
@@ -686,6 +711,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_evt.push_back(eventnr);
         sim_obj_id.push_back(obj_id);
         sim_pid.push_back(pid);
+        //sim_mask.push_back((itcheck->second));
+
 
         if (itcheck != hitMap.end()){
           rec_x.push_back(recHitTools_.getPosition(detid_).x());
@@ -702,6 +729,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_evt.push_back(eventnr);
           rec_obj_id.push_back(obj_id);
           rec_pid.push_back(pid);
+          //rec_mask.push_back((itcheck->second));
+
         }
       }
     }
@@ -723,6 +752,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   sim_kf_compatible.clear();
   sim_obj_id.clear();
   sim_pid.clear();
+  sim_mask.clear();
 
   // RecHit
 
@@ -740,6 +770,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_kf_compatible.clear();
   rec_obj_id.clear();
   rec_pid.clear();
+  rec_mask.clear();
 
   // KF
 
