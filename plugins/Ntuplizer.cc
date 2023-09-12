@@ -68,6 +68,14 @@
 
 #include "DataFormats/Math/interface/Vector3D.h"
 
+#include "Validation/HGCalValidation/interface/CaloParticleSelector.h"
+#include "SimTracker/Common/interface/TrackingParticleSelector.h"
+#include "CommonTools/RecoAlgos/interface/RecoTrackSelectorBase.h"
+#include "SimDataFormats/Associations/interface/TrackToTrackingParticleAssociator.h"
+
+#include "SimDataFormats/Associations/interface/TrackToTrackingParticleAssociator.h"
+#include "SimTracker/Common/interface/TrackingParticleSelector.h"
+#include "CommonTools/RecoAlgos/interface/RecoTrackSelectorBase.h"
 
 //ROOT includes
 #include "FWCore/ServiceRegistry/interface/Service.h"
@@ -134,6 +142,11 @@ private:
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeomToken_;
   edm::EDGetTokenT<edm::View<reco::Track>> tracksToken_;
   edm::EDGetTokenT<std::vector<float>> lcMaskToken_;
+  std::vector<edm::InputTag> associators;
+  std::vector<edm::EDGetTokenT<reco::SimToRecoCollection>> associatormapStRs;
+  std::vector<edm::EDGetTokenT<reco::RecoToSimCollection>> associatormapRtSs;
+  edm::EDGetTokenT<std::vector<SimVertex>> simVerticesToken_;
+
 
 
   TTree *tree = new TTree("tree","tree");
@@ -201,7 +214,7 @@ private:
   std::vector<int> rec_kf_compatible;
   std::vector<int> rec_obj_id;
   std::vector<int> rec_pid;
-  std::vector<float> rec_mask;
+  //std::vector<float> rec_mask;
 
 
   // SimHits
@@ -220,7 +233,7 @@ private:
   std::vector<int> sim_kf_compatible;
   std::vector<int> sim_obj_id;
   std::vector<int> sim_pid;
-  std::vector<float> sim_mask;
+  //std::vector<float> sim_mask;
 
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
@@ -250,11 +263,14 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       tracksToken_(consumes<edm::View<reco::Track>>(iConfig.getUntrackedParameter<edm::InputTag>("tracks"))),
       lcMaskToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("lcMask"))),
+      associators(iConfig.getUntrackedParameter<std::vector<edm::InputTag>>("associators")),
+      simVerticesToken_(consumes<std::vector<SimVertex>>(iConfig.getParameter<edm::InputTag>("simVertices"))),
       eta_(iConfig.getParameter<std::string>("eta")),
       energy_(iConfig.getParameter<std::string>("energy")),
       outdir_(iConfig.getParameter<std::string>("outdir")){
 
 
+  associatormapRtSs.push_back(consumes<reco::RecoToSimCollection>(associators[0]));
 
   detectors = {"", "Si", "Si 120", "Si 200", "Si 300", "Sc"};
   hittypes = {"Simhits","Rechits","KF"};
@@ -283,7 +299,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("sim_kf_compatible", &sim_kf_compatible);
   tree->Branch("sim_obj_id", &sim_obj_id);
   tree->Branch("sim_pid", &sim_pid);
-  tree->Branch("sim_mask", &sim_mask);
+  //tree->Branch("sim_mask", &sim_mask);
 
   // RecHits
 
@@ -301,7 +317,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_kf_compatible", &rec_kf_compatible);
   tree->Branch("rec_obj_id", &rec_obj_id);
   tree->Branch("rec_pid", &rec_pid);
-  tree->Branch("rec_mask", &rec_mask);
+  //tree->Branch("rec_mask", &rec_mask);
 
   // KF
 
@@ -406,8 +422,7 @@ void Ntuplizer::clear_arrays(){
   sim_kf_compatible.clear();
   sim_obj_id.clear();
   sim_pid.clear();
-  sim_mask.clear();
-
+  //sim_mask.clear();
 
   // RecHit
 
@@ -425,8 +440,7 @@ void Ntuplizer::clear_arrays(){
   rec_kf_compatible.clear();
   rec_obj_id.clear();
   rec_pid.clear();
-  rec_mask.clear();
-
+  //rec_mask.clear();
 
   // KF
 
@@ -518,20 +532,41 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(tracksToken_,tracks_h);
   const edm::View<reco::Track> & tkx = *(tracks_h.product()); 
 
-
-
-
-  /*
   // Match tracks to simtrack
-  edm::Handle<edm::View<reco::Track>> tracks_h;
-  iEvent.getByToken(tracksToken_,tracks_h);
-  const edm::View<reco::Track> & tkx = *(tracks_h.product());
   
+  reco::RecoToSimCollection const* recSimCollP = nullptr;
   edm::Handle<reco::RecoToSimCollection> recotosimCollectionH;
   iEvent.getByToken(associatormapRtSs[0], recotosimCollectionH);
   recSimCollP = recotosimCollectionH.product();
   reco::RecoToSimCollection const& recSimColl = *recSimCollP;
-  */
+
+
+  edm::Handle<std::vector<SimVertex>> simVerticesHandle;
+  iEvent.getByToken(simVerticesToken_, simVerticesHandle);
+  std::vector<SimVertex> const& simVertices = *simVerticesHandle;
+
+  TrackingParticleSelector tpSelector_ = TrackingParticleSelector(0, 100, 1.5, 3,120,280,0,true,false,false,false,{13});
+  std::vector<int> signalIdx;
+
+  for (edm::View<reco::Track>::size_type i = 0; i < tkx.size(); ++i) {
+    RefToBase<reco::Track> track(tracks_h, i);  
+        
+    if(recSimColl.find(track) == recSimColl.end()) continue;
+
+    std::vector<std::pair<TrackingParticleRef, double> > tps;
+    tps = recSimColl[track];
+    for (auto tp:tps){
+      if(!tpSelector_(*(tp.first))) continue;
+      signalIdx.push_back(i); 
+    }
+  }
+
+  if (signalIdx.size()==0){
+    std::cout << "No Signal found!!!!!!" << std::endl;
+    return;
+  }
+  std::cout << "Number of Signal Ids: " << signalIdx.size() << std::endl; 
+
 
   //std::map<float, GlobalPoint> map_gps_kf;
   std::map<int, std::vector<int>> map_detid_kf;
@@ -560,7 +595,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   // KF Hits
 
   for(int i = 0;i<int(kfhits.size());i++){
-
+    if (signalIdx[0] != kfhits[i].trackId) continue;
     std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(kfhits[i].detid);
     float e = 0;
     if (itcheck != hitMap.end()){
@@ -628,16 +663,19 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     track_algo.push_back(tkx[tkId].algo());
   }
   
+  // Define CP selector
+  CaloParticleSelector cpSelector_ = CaloParticleSelector(0, 100, 1.5, 3,120,280,0,1000000,true,false,false,false,false,{13},-3.2,3.2);
 
   // Loop over Caloparticles 
-
-  std::cout << "Hello" << std::endl;
 
   std::vector<DetId> tmprechits_; tmprechits_.clear();
   int obj_id = 0;
   for (const auto& it_cp : cps) {
     // do something with track parameters, e.g, plot the charge.
     const CaloParticle& cp = ((it_cp)); 
+
+    //Select only Signal
+    if (!cpSelector_(cp,simVertices)) continue;
     auto pid = cp.particleId();
     const SimClusterRefVector& simclusters = cp.simClusters();
 
@@ -695,7 +733,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         }
         */
         
-        std::cout << (itcheck->second) << std::endl;
+        //std::cout << (itcheck->second) << std::endl;
 
         sim_x.push_back(recHitTools_.getPosition(detid_).x());
         sim_y.push_back(recHitTools_.getPosition(detid_).y());
@@ -752,7 +790,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   sim_kf_compatible.clear();
   sim_obj_id.clear();
   sim_pid.clear();
-  sim_mask.clear();
+  //sim_mask.clear();
 
   // RecHit
 
@@ -770,7 +808,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_kf_compatible.clear();
   rec_obj_id.clear();
   rec_pid.clear();
-  rec_mask.clear();
+  //rec_mask.clear();
 
   // KF
 

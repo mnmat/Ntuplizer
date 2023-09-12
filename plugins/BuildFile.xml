@@ -32,6 +32,9 @@
 <use name="SimDataFormats/CaloAnalysis"/>
 <use name="CommonTools/UtilAlgos"/>
 <use name="FWCore/ServiceRegistry"/>
+<use name="SimTracker/TrackAssociation"/>
+<use name="SimGeneral/TrackingAnalysis"/>
+<use name="SimTracker/TrackerHitAssociation"/>
 <export>
   <lib  name="1"/>
 </export>
