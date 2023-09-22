@@ -130,6 +130,8 @@ private:
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsFHToken_;
   edm::EDGetTokenT<HGCRecHitCollection> hgcalRecHitsBHToken_;
   edm::EDGetTokenT<std::vector<KFHit>> KFHitsToken_;
+  edm::EDGetTokenT<std::vector<KFHit>> PropHitsToken_;
+
   edm::EDGetTokenT<reco::CaloClusterCollection> hgcalLayerClustersToken_;
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeomToken_;
   edm::EDGetTokenT<edm::View<reco::Track>> tracksToken_;
@@ -148,17 +150,6 @@ private:
   std::string outdir_;
   std::shared_ptr<hgcal::RecHitTools> recHitTools;
 
-  // Track
-
-  std::vector<int> track_id;
-  std::vector<int> track_charge;
-  std::vector<float> track_momentum;
-  std::vector<float> track_quality;
-  std::vector<float> track_chi2;
-  std::vector<float> track_validfraction;
-  std::vector<float> track_qoverp;
-  std::vector<float> track_algo;
-
 
   // KF
 
@@ -176,14 +167,39 @@ private:
   std::vector<int> kf_evt;
   std::vector<float> kf_eta;
   std::vector<float> kf_theta;
-  std::vector<float> kf_trackid;
-  std::vector<float> kf_trackcharge;
-  std::vector<float> kf_trackmomentum;
-  std::vector<float> kf_trackquality;
-  std::vector<float> kf_trackchi2;
+  std::vector<float> kf_track_id;
+  std::vector<float> kf_track_charge;
+  std::vector<float> kf_track_momentum;
+  std::vector<float> kf_track_quality;
+  std::vector<float> kf_track_chi2;
   std::vector<float> kf_track_validfraction;
   std::vector<float> kf_track_qoverp;
   std::vector<float> kf_track_algo;
+
+  // Prop
+
+  std::vector<float> prop_x;
+  std::vector<float> prop_y;
+  std::vector<float> prop_z;
+  std::vector<float> prop_e;
+  std::vector<float> prop_cov_xx;
+  std::vector<float> prop_cov_xy;
+  std::vector<float> prop_cov_yy;
+  std::vector<int> prop_detid;
+  std::vector<int> prop_charge;
+  std::vector<int> prop_layer;
+  std::vector<std::string> prop_dtype;
+  std::vector<int> prop_evt;
+  std::vector<float> prop_eta;
+  std::vector<float> prop_theta;
+  std::vector<float> prop_track_id;
+  std::vector<float> prop_track_charge;
+  std::vector<float> prop_track_momentum;
+  std::vector<float> prop_track_quality;
+  std::vector<float> prop_track_chi2;
+  std::vector<float> prop_track_validfraction;
+  std::vector<float> prop_track_qoverp;
+  std::vector<float> prop_track_algo;
 
     // RecHits
 
@@ -246,6 +262,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       hgcalRecHitsBHToken_(consumes<HGCRecHitCollection>(iConfig.getParameter<edm::InputTag>("hgcalRecHitsBH"))),
       //abs_failToken_(consumes<float>(iConfig.getParameter<edm::InputTag>("abs_fail"))),
       KFHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("KFHits"))),
+      PropHitsToken_(consumes<std::vector<KFHit>>(iConfig.getParameter<edm::InputTag>("PropHits"))),
       hgcalLayerClustersToken_(consumes<reco::CaloClusterCollection>(iConfig.getParameter<edm::InputTag>("hgcalLayerClusters"))),
       caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       tracksToken_(consumes<edm::View<reco::Track>>(iConfig.getUntrackedParameter<edm::InputTag>("tracks"))),
@@ -259,6 +276,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   detectors = {"", "Si", "Si 120", "Si 200", "Si 300", "Sc"};
   hittypes = {"Simhits","Rechits","KF"};
   objects = {"Simhits", "Rechits"};        
+  positions = {"KF","Prop"};
   //recHitTools_.reset(new hgcal::RecHitTools());
   //now do what ever initialization is needed
   
@@ -318,14 +336,39 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_evt", &kf_evt);
   tree->Branch("kf_eta", &kf_eta);
   tree->Branch("kf_theta", &kf_theta);
-  tree->Branch("kf_track_id", &track_id);
-  tree->Branch("kf_track_charge", &track_charge);
-  tree->Branch("kf_track_momentum", &track_momentum);
-  tree->Branch("kf_track_quality", &track_quality);
-  tree->Branch("kf_track_chi2", &track_chi2);
-  tree->Branch("kf_track_validfraction", &track_validfraction);
-  tree->Branch("kf_track_qoverp", &track_qoverp);
-  tree->Branch("kf_track_algo", &track_algo);
+  tree->Branch("kf_track_id", &kf_track_id);
+  tree->Branch("kf_track_charge", &kf_track_charge);
+  tree->Branch("kf_track_momentum", &kf_track_momentum);
+  tree->Branch("kf_track_quality", &kf_track_quality);
+  tree->Branch("kf_track_chi2", &kf_track_chi2);
+  tree->Branch("kf_track_validfraction", &kf_track_validfraction);
+  tree->Branch("kf_track_qoverp", &kf_track_qoverp);
+  tree->Branch("kf_track_algo", &kf_track_algo);
+
+
+    // Prop
+
+  tree->Branch("prop_x", &prop_x);
+  tree->Branch("prop_y", &prop_y);
+  tree->Branch("prop_z", &prop_z);
+  tree->Branch("prop_e", &prop_e);
+  tree->Branch("prop_layer", &prop_layer);
+  tree->Branch("prop_detid", &prop_detid);
+  tree->Branch("prop_dtype", &prop_dtype);
+  tree->Branch("prop_cov_xx", &prop_cov_xx);
+  tree->Branch("prop_cov_xy", &prop_cov_xy);
+  tree->Branch("prop_cov_yy", &prop_cov_yy);
+  tree->Branch("prop_evt", &prop_evt);
+  tree->Branch("prop_eta", &prop_eta);
+  tree->Branch("prop_theta", &prop_theta);
+  tree->Branch("prop_track_id", &prop_track_id);
+  tree->Branch("prop_track_charge", &prop_track_charge);
+  tree->Branch("prop_track_momentum", &prop_track_momentum);
+  tree->Branch("prop_track_quality", &prop_track_quality);
+  tree->Branch("prop_track_chi2", &prop_track_chi2);
+  tree->Branch("prop_track_validfraction", &prop_track_validfraction);
+  tree->Branch("prop_track_qoverp", &prop_track_qoverp);
+  tree->Branch("prop_track_algo", &prop_track_algo);
 
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
@@ -443,14 +486,38 @@ void Ntuplizer::clear_arrays(){
   kf_evt.clear();
   kf_eta.clear();
   kf_theta.clear();
-  track_id.clear();
-  track_charge.clear();
-  track_momentum.clear();
-  track_quality.clear();
-  track_chi2.clear();
-  track_validfraction.clear();
-  track_qoverp.clear();
-  track_algo.clear();
+  kf_track_id.clear();
+  kf_track_charge.clear();
+  kf_track_momentum.clear();
+  kf_track_quality.clear();
+  kf_track_chi2.clear();
+  kf_track_validfraction.clear();
+  kf_track_qoverp.clear();
+  kf_track_algo.clear();
+
+  // Prop
+
+  prop_x.clear();
+  prop_y.clear();
+  prop_z.clear();
+  prop_e.clear();
+  prop_detid.clear();
+  prop_layer.clear();
+  prop_dtype.clear();
+  prop_cov_xx.clear();
+  prop_cov_xy.clear();
+  prop_cov_yy.clear();
+  prop_evt.clear();
+  prop_eta.clear();
+  prop_theta.clear();
+  prop_track_id.clear();
+  prop_track_charge.clear();
+  prop_track_momentum.clear();
+  prop_track_quality.clear();
+  prop_track_chi2.clear();
+  prop_track_validfraction.clear();
+  prop_track_qoverp.clear();
+  prop_track_algo.clear();
 }
 
 void Ntuplizer::fillHitMap(std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap,
@@ -514,12 +581,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(KFHitsToken_, KFHitsHandle);
   const std::vector<KFHit> &kfhits = *KFHitsHandle;
 
+  edm::Handle<std::vector<KFHit>> PropHitsHandle;
+  iEvent.getByToken(PropHitsToken_, PropHitsHandle);
+  const std::vector<KFHit> &prophits = *PropHitsHandle;
+
   edm::Handle<edm::View<reco::Track>> tracks_h;
   iEvent.getByToken(tracksToken_,tracks_h);
   const edm::View<reco::Track> & tkx = *(tracks_h.product()); 
-
-
-
 
   /*
   // Match tracks to simtrack
@@ -533,9 +601,9 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   reco::RecoToSimCollection const& recSimColl = *recSimCollP;
   */
 
-  //std::map<float, GlobalPoint> map_gps_kf;
-  std::map<int, std::vector<int>> map_detid_kf;
-  std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf;
+  std::map<float, GlobalPoint> map_gps_kf, map_gps_prop;
+  std::map<int, std::vector<int>> map_detid_kf,map_detid_prop;
+  std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf, map_xx_prop, map_xy_prop, map_yy_prop;
 
     // init vars
   const CaloGeometry &geom = iSetup.getData(caloGeomToken_);
@@ -544,8 +612,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(DetId::Detector(10), ForwardSubdetector::ForwardEmpty);
   auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
   const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
-  auto radiusLayer = ddd->rangeRLayer(8, true);
-  std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
+  //auto radiusLayer = ddd->rangeRLayer(8, true);
+  //std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
 
   // Test KFHits
 
@@ -559,75 +627,103 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 */
   // KF Hits
 
-  for(int i = 0;i<int(kfhits.size());i++){
+  for (const auto& pos:positions){
+    auto &hits = (pos=="KF")? kfhits:prophits;
+    auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+    auto &map_detid = (pos=="KF")? map_detid_kf:map_detid_prop;
 
-    std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(kfhits[i].detid);
-    float e = 0;
-    if (itcheck != hitMap.end()){
-      e = hitMap[kfhits[i].detid].first->energy();
-    }
-    //unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
 
-    std::string detector;
-    std::string thickness;
-    std::string tmp;
-    
-    // TODO: if conditions necessary to deal with missing rechits. Not yet possible to determine area of detector properly
-    //       Implement it in such a way that we can find the closest detid and from this determine silicon thickness.
-    if (kfhits[i].detid==0){
-      //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
-      //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
-      detector = "Sc";
-      thickness = "None";
-      tmp = "Sc";
-    }
-    else if((kfhits[i].detid==8)||(kfhits[i].detid==9)){
-      //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
-      //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
-      detector = "Si";
-      //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
-      tmp = detector;
-    }
-    else if (recHitTools_.isSilicon(kfhits[i].detid)){
-      detector = "Si";
-      thickness = std::to_string(int(recHitTools_.getSiThickness(kfhits[i].detid))); 
-      tmp = detector+" "+thickness;
-    }
-    else{
-      detector = "Sc";
-      thickness = "None";
-      tmp = "Sc";
-    } 
+    auto &vec_x = (pos=="KF")? kf_x:prop_x;
+    auto &vec_y = (pos=="KF")? kf_y:prop_y;
+    auto &vec_z = (pos=="KF")? kf_z:prop_z;
+    auto &vec_detid = (pos=="KF")? kf_detid:prop_detid;
+    auto &vec_layer = (pos=="KF")? kf_layer:prop_layer;
+    auto &vec_dtype = (pos=="KF")? kf_dtype:prop_dtype;
+    auto &vec_cov_xx = (pos=="KF")? kf_cov_xx:prop_cov_xx;
+    auto &vec_cov_xy = (pos=="KF")? kf_cov_xy:prop_cov_xy;
+    auto &vec_cov_yy = (pos=="KF")? kf_cov_yy:prop_cov_yy;
+    auto &vec_evt = (pos=="KF")? kf_evt:prop_evt;
+    auto &vec_e = (pos=="KF")? kf_e:prop_e;
+    auto &vec_eta = (pos=="KF")? kf_eta:prop_eta;
+    auto &vec_theta = (pos=="KF")? kf_theta:prop_theta;
+    auto &vec_track_charge = (pos=="KF")? kf_track_charge:prop_track_charge;
+    auto &vec_track_momentum = (pos=="KF")? kf_track_momentum:prop_track_momentum;
+    auto &vec_track_quality = (pos=="KF")? kf_track_quality:prop_track_quality;
+    auto &vec_track_chi2 = (pos=="KF")? kf_track_chi2:prop_track_chi2;
+    auto &vec_track_id = (pos=="KF")? kf_track_id:prop_track_id;
+    auto &vec_track_validfraction = (pos=="KF")? kf_track_validfraction:prop_track_validfraction;
+    auto &vec_track_qoverp = (pos=="KF")? kf_track_qoverp:prop_track_qoverp;
+    auto &vec_track_algo = (pos=="KF")? kf_track_algo:prop_track_algo;
 
-    int tkId = kfhits[i].trackId;
-    std::cout << "Track Reco algo: " << tkx[tkId].algoName()<< ", "<< tkx[tkId].algo() << std::endl;
-    std::cout << "Track Quality: " <<  tkx[tkId].qualityMask() << std::endl;
+    for(int i = 0;i<int(hits.size());i++){
 
-    map_detid_kf[kfhits[i].layer].push_back(kfhits[i].detid);
-    //map_gps[hits[i].center.z()]=hits[i].center;
-    kf_x.push_back(kfhits[i].center.x());
-    kf_y.push_back(kfhits[i].center.y());
-    kf_z.push_back(kfhits[i].center.z());
-    kf_e.push_back(e);
-    kf_detid.push_back(kfhits[i].detid);
-    kf_layer.push_back(kfhits[i].layer); // 
-    kf_dtype.push_back(tmp);
-    kf_cov_xx.push_back(kfhits[i].xx);
-    kf_cov_xy.push_back(kfhits[i].xy);
-    kf_cov_yy.push_back(kfhits[i].yy);
-    kf_evt.push_back(eventnr);
-    kf_eta.push_back(kfhits[i].eta);
-    kf_theta.push_back(kfhits[i].theta);
-    track_id.push_back(kfhits[i].trackId);
-    track_charge.push_back(kfhits[i].trackCharge);
-    track_momentum.push_back(kfhits[i].trackMomentum);
-    track_quality.push_back(kfhits[i].trackQuality);
-    track_chi2.push_back(kfhits[i].trackChi2);
-    track_validfraction.push_back(kfhits[i].trackValidFraction);
-    track_qoverp.push_back(kfhits[i].trackQOverP);
-    track_algo.push_back(tkx[tkId].algo());
+      std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(hits[i].detid);
+      float e = 0;
+      if (itcheck != hitMap.end()){
+        e = hitMap[hits[i].detid].first->energy();
+      }
+      //unsigned int layer_ = recHitTools_.getLayerWithOffset(hits[i].detid);
+
+      std::string detector;
+      std::string thickness;
+      std::string tmp;
+      
+      // TODO: if conditions necessary to deal with missing rechits. Not yet possible to determine area of detector properly
+      //       Implement it in such a way that we can find the closest detid and from this determine silicon thickness.
+      if (hits[i].detid==0){
+        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
+        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+        detector = "Sc";
+        thickness = "None";
+        tmp = "Sc";
+      }
+      else if((hits[i].detid==8)||(hits[i].detid==9)){
+        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
+        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+        detector = "Si";
+        //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
+        tmp = detector;
+      }
+      else if (recHitTools_.isSilicon(hits[i].detid)){
+        detector = "Si";
+        thickness = std::to_string(int(recHitTools_.getSiThickness(hits[i].detid))); 
+        tmp = detector+" "+thickness;
+      }
+      else{
+        detector = "Sc";
+        thickness = "None";
+        tmp = "Sc";
+      } 
+
+      int tkId = hits[i].trackId;
+      std::cout << "Track Reco algo: " << tkx[tkId].algoName()<< ", "<< tkx[tkId].algo() << std::endl;
+      std::cout << "Track Quality: " <<  tkx[tkId].qualityMask() << std::endl;
+
+      map_detid[hits[i].layer].push_back(hits[i].detid);
+      //map_gps[hits[i].center.z()]=hits[i].center;
+      vec_x.push_back(hits[i].center.x());
+      vec_y.push_back(hits[i].center.y());
+      vec_z.push_back(hits[i].center.z());
+      vec_e.push_back(e);
+      vec_detid.push_back(hits[i].detid);
+      vec_layer.push_back(hits[i].layer); // 
+      vec_dtype.push_back(tmp);
+      vec_cov_xx.push_back(hits[i].xx);
+      vec_cov_xy.push_back(hits[i].xy);
+      vec_cov_yy.push_back(hits[i].yy);
+      vec_evt.push_back(eventnr);
+      vec_eta.push_back(hits[i].eta);
+      vec_theta.push_back(hits[i].theta);
+      vec_track_id.push_back(hits[i].trackId);
+      vec_track_charge.push_back(hits[i].trackCharge);
+      vec_track_momentum.push_back(hits[i].trackMomentum);
+      vec_track_quality.push_back(hits[i].trackQuality);
+      vec_track_chi2.push_back(hits[i].trackChi2);
+      vec_track_validfraction.push_back(hits[i].trackValidFraction);
+      vec_track_qoverp.push_back(hits[i].trackQOverP);
+      vec_track_algo.push_back(tkx[tkId].algo());
+    }
   }
-  
 
   // Loop over Caloparticles 
 
@@ -695,7 +791,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         }
         */
         
-        std::cout << (itcheck->second) << std::endl;
+        //std::cout << (itcheck->second) << std::endl;
 
         sim_x.push_back(recHitTools_.getPosition(detid_).x());
         sim_y.push_back(recHitTools_.getPosition(detid_).y());
@@ -787,15 +883,39 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_evt.clear();
   kf_eta.clear();
   kf_theta.clear();
-  track_id.clear();
-  track_charge.clear();
-  track_momentum.clear();
-  track_quality.clear();
-  track_chi2.clear();
-  track_validfraction.clear();
-  track_qoverp.clear();
-  track_algo.clear();
+  kf_track_id.clear();
+  kf_track_charge.clear();
+  kf_track_momentum.clear();
+  kf_track_quality.clear();
+  kf_track_chi2.clear();
+  kf_track_validfraction.clear();
+  kf_track_qoverp.clear();
+  kf_track_algo.clear();
   
+  // Prop
+
+  prop_x.clear();
+  prop_y.clear();
+  prop_z.clear();
+  prop_e.clear();
+  prop_detid.clear();
+  prop_layer.clear();
+  prop_dtype.clear();
+  prop_cov_xx.clear();
+  prop_cov_xy.clear();
+  prop_cov_yy.clear();
+  prop_evt.clear();
+  prop_eta.clear();
+  prop_theta.clear();
+  prop_track_id.clear();
+  prop_track_charge.clear();
+  prop_track_momentum.clear();
+  prop_track_quality.clear();
+  prop_track_chi2.clear();
+  prop_track_validfraction.clear();
+  prop_track_qoverp.clear();
+  prop_track_algo.clear();
+
   //clear_arrays();
   eventnr=eventnr+1;
 

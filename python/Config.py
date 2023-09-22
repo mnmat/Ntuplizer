@@ -12,13 +12,13 @@ process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))
 # Specify Eta
 
 import sys
+import os
 
 eta = sys.argv[2]
 energy = sys.argv[3]
 nevents = sys.argv[4]
 idx = sys.argv[5]
 input_dir = sys.argv[6]
-output_dir = input_dir
 
 eta = eta.replace(".","")
 
@@ -33,7 +33,9 @@ process.source = cms.Source("PoolSource",
 #outfile_ = 'file:/eos/home-m/mmatthew/Data/deleteme.root'
 #fname = '/eos/home-m/mmatthew/Data/Analyzer/UpdatorStudies/'+propagator+'/' + cap+'/n'+nevents+'/Eta_'+eta+'/singlemuon_flatEGun_hgcalCenter/step3/'
 #fname = '/eos/home-m/mmatthew/Data/KF/MaterialBudget/Radlen/0_25/'+ cap+'/n'+nevents+'/Eta_'+eta+'/singlemuon_flatEGun_hgcalCenter/step3/'
-outfile_ ="file:" + output_dir + "/" + cap + "/n" + nevents +  "/Eta_" + eta + "/singlemuon_flatEGun_hgcalCenter/step3/ntuplizer_singlemuon_e" + energy + "GeV_eta" + eta +"_" + cap +"_events" + nevents + "_nopu_" +idx +".root"            
+output_dir = input_dir + "/" + cap + "/n" + nevents +  "/Eta_" + eta + "/singlemuon_flatEGun_hgcalCenter/step3/"
+outfile_ ="file:" + output_dir + "ntuplizer_singlemuon_e" + energy + "GeV_eta" + eta +"_" + cap +"_events" + nevents + "_nopu_" +idx +".root"            
+
 
 process.TFileService = cms.Service("TFileService",
                                    fileName = cms.string(outfile_),
@@ -48,6 +50,7 @@ process.demo = cms.EDAnalyzer('Ntuplizer',
    hgcalRecHitsFH = cms.InputTag("HGCalRecHit", "HGCHEFRecHits"),
    hgcalRecHitsBH = cms.InputTag("HGCalRecHit", "HGCHEBRecHits"),
    KFHits = cms.InputTag("ticlTrackstersKalmanFilter","KFHits","RECO"),
+   PropHits = cms.InputTag("ticlTrackstersKalmanFilter","PropHits","RECO"),
    #PropHits = cms.InputTag("ticlTrackstersKF","PropHits","RECO"),
    hgcalLayerClusters = cms.InputTag("hgcalLayerClusters", "", "RECO"),
    tracks    = cms.untracked.InputTag('generalTracks'),
@@ -56,6 +59,6 @@ process.demo = cms.EDAnalyzer('Ntuplizer',
    energy = cms.string(energy), 
    outdir = cms.string(input_dir), 
    #trackPtMin = cms.double(0.3)
-                              )
+    )
 process.p = cms.Path(process.demo)
 
