@@ -33,9 +33,13 @@ process.source = cms.Source("PoolSource",
 #outfile_ = 'file:/eos/home-m/mmatthew/Data/deleteme.root'
 #fname = '/eos/home-m/mmatthew/Data/Analyzer/UpdatorStudies/'+propagator+'/' + cap+'/n'+nevents+'/Eta_'+eta+'/singlemuon_flatEGun_hgcalCenter/step3/'
 #fname = '/eos/home-m/mmatthew/Data/KF/MaterialBudget/Radlen/0_25/'+ cap+'/n'+nevents+'/Eta_'+eta+'/singlemuon_flatEGun_hgcalCenter/step3/'
+<<<<<<< HEAD
 output_dir = input_dir + "/" + cap + "/n" + nevents +  "/Eta_" + eta + "/singlemuon_flatEGun_hgcalCenter/step3/"
 outfile_ ="file:" + output_dir + "ntuplizer_singlemuon_e" + energy + "GeV_eta" + eta +"_" + cap +"_events" + nevents + "_nopu_" +idx +".root"            
 
+=======
+outfile_ ="file:" + output_dir + "/" + cap + "/n" + nevents +  "/Eta_" + eta + "/singlemuon_flatEGun_hgcalCenter/step3/ntuplzrSignalOnly_singlemuon_e" + energy + "GeV_eta" + eta +"_" + cap +"_events" + nevents + "_nopu_" +idx +".root" 
+>>>>>>> SignalOnly
 
 process.TFileService = cms.Service("TFileService",
                                    fileName = cms.string(outfile_),
@@ -55,6 +59,8 @@ process.demo = cms.EDAnalyzer('Ntuplizer',
    hgcalLayerClusters = cms.InputTag("hgcalLayerClusters", "", "RECO"),
    tracks    = cms.untracked.InputTag('generalTracks'),
    lcMask = cms.InputTag("ticlTrackstersCLUE3DHigh",""),
+   associators = cms.untracked.VInputTag("trackingParticleRecoTrackAsssociation"),
+   simVertices = cms.InputTag("g4SimHits"),
    eta = cms.string(eta),
    energy = cms.string(energy), 
    outdir = cms.string(input_dir), 
