@@ -120,6 +120,7 @@ private:
   void beginJob() override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
+  bool inSensorCell(DetId detid_, GlobalPoint point);
   void clear_arrays();
   virtual void fillHitMap(std::map<DetId, std::pair<const HGCRecHit*,float>>& hitMap, 
       const HGCRecHitCollection& rechitsEE, 
@@ -228,6 +229,8 @@ private:
   std::vector<std::string> rec_dtype;
   std::vector<int> rec_evt;
   std::vector<int> rec_kf_compatible;
+  std::vector<int> rec_kf_contained;
+  std::vector<int> rec_kf_inSensor;
   std::vector<int> rec_obj_id;
   std::vector<int> rec_pid;
   //std::vector<float> rec_mask;
@@ -247,6 +250,8 @@ private:
   std::vector<std::string> sim_dtype;
   std::vector<int> sim_evt;
   std::vector<int> sim_kf_compatible;
+  std::vector<int> sim_kf_contained;
+  std::vector<int> sim_kf_inSensor;
   std::vector<int> sim_obj_id;
   std::vector<int> sim_pid;
   //std::vector<float> sim_mask;
@@ -315,6 +320,8 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("sim_cov_yy", &sim_cov_yy);
   tree->Branch("sim_evt", &sim_evt);
   tree->Branch("sim_kf_compatible", &sim_kf_compatible);
+  tree->Branch("sim_kf_contained", &sim_kf_contained);
+  tree->Branch("sim_kf_inSensor", &sim_kf_inSensor);
   tree->Branch("sim_obj_id", &sim_obj_id);
   tree->Branch("sim_pid", &sim_pid);
   //tree->Branch("sim_mask", &sim_mask);
@@ -333,6 +340,8 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_cov_yy", &rec_cov_yy);
   tree->Branch("rec_evt", &rec_evt);
   tree->Branch("rec_kf_compatible", &rec_kf_compatible);
+  tree->Branch("rec_kf_contained", &rec_kf_contained);
+  tree->Branch("rec_kf_inSensor", &rec_kf_inSensor);
   tree->Branch("rec_obj_id", &rec_obj_id);
   tree->Branch("rec_pid", &rec_pid);
   //tree->Branch("rec_mask", &rec_mask);
@@ -447,6 +456,59 @@ LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd
   }
 } 
 
+bool Ntuplizer::inSensorCell(DetId detid_, GlobalPoint point){
+  // inSensorCell checks both hexagonal cells and the trapezoid based on the corners stored in the hgcalGeometry.
+  // The corners are stored in a counter clockwise fashion.
+  // The hexagonal boundaries are checked using the winding number algorithm.
+  // The trapezoid boundaries are checked using simple polar coordinates.
+
+  // Get Coordinates
+  auto x = point.x();
+  auto y = point.y();
+  
+  // GetCorners
+  auto hgcalgeometry = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+  auto corners = hgcalgeometry->getCorners(detid_);
+
+  /*
+  std::cout << "v1=["<<corners[0].x()<<","<<corners[0].y()<<","<<corners[0].z()<<"]" << std::endl;
+  std::cout << "v2=["<<corners[1].x()<<","<<corners[1].y()<<","<<corners[1].z()<<"]" << std::endl;
+  std::cout << "v3=["<<corners[2].x()<<","<<corners[2].y()<<","<<corners[2].z()<<"]" << std::endl;
+  std::cout << "v4=["<<corners[3].x()<<","<<corners[3].y()<<","<<corners[3].z()<<"]" << std::endl;
+  std::cout << "v5=["<<corners[4].x()<<","<<corners[4].y()<<","<<corners[4].z()<<"]" << std::endl;
+  std::cout << "v6=["<<corners[5].x()<<","<<corners[5].y()<<","<<corners[5].z()<<"]" << std::endl;
+  std::cout << "v7=["<<corners[6].x()<<","<<corners[6].y()<<","<<corners[6].z()<<"]" << std::endl;
+  std::cout << "p=["<<point.x()<<","<<point.y()<<","<<point.z()<<"]" << std::endl;
+  */
+  bool inside = false;
+  if (recHitTools_.isSilicon(detid_)){
+    // Check Hexagon
+    int cornersSize = 7;
+    int j=0;
+    for (int i = 1; i < cornersSize; i++) {
+      if (((corners[i].y() >+ point.y()) != (corners[j].y() >= point.y())) &&
+          (x <= (corners[j].x() - corners[i].x()) * (y - corners[i].y()) / (corners[j].y() - corners[i].y()) + corners[i].x())) {
+          inside = !inside;
+      }
+      j++;
+    }
+  }
+  else {
+    // Check Scintillator
+    float phi_min = std::atan2(corners[0].y(),corners[0].x()); //radians
+    float phi_max = std::atan2(corners[1].y(),corners[1].x()); //radians
+    float r_min = std::sqrt(corners[3].x()*corners[3].x() + corners[3].y()*corners[3].y());
+    float r_max = std::sqrt(corners[0].x()*corners[0].x() + corners[0].y()*corners[0].y());;
+
+    auto r = std::sqrt(point.x()*point.x()+point.y()*point.y());
+    if (point.phi()>=phi_min && point.phi()<=phi_max){
+      if (r>=r_min && r<=r_max){
+        inside = !inside;
+      }
+    }
+  }
+  return inside;
+}
 void Ntuplizer::clear_arrays(){
 
   // SimHit
@@ -463,6 +525,8 @@ void Ntuplizer::clear_arrays(){
   sim_cov_yy.clear();
   sim_evt.clear();
   sim_kf_compatible.clear();
+  sim_kf_contained.clear();
+  sim_kf_inSensor.clear();
   sim_obj_id.clear();
   sim_pid.clear();
   //sim_mask.clear();
@@ -481,6 +545,8 @@ void Ntuplizer::clear_arrays(){
   rec_cov_yy.clear();
   rec_evt.clear();
   rec_kf_compatible.clear();
+  rec_kf_contained.clear();
+  rec_kf_inSensor.clear();
   rec_obj_id.clear();
   rec_pid.clear();
   //rec_mask.clear();
@@ -639,7 +705,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   std::cout << "Number of Signal Ids: " << signalIdx.size() << std::endl; 
 
 
-  std::map<float, GlobalPoint> map_gps_kf, map_gps_prop;
+  std::map<int, GlobalPoint> map_gps_kf, map_gps_prop;
   std::map<int, std::vector<int>> map_detid_kf,map_detid_prop;
   std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf, map_xx_prop, map_xy_prop, map_yy_prop;
 
@@ -739,7 +805,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       std::cout << "Track Quality: " <<  tkx[tkId].qualityMask() << std::endl;
 
       map_detid[hits[i].layer].push_back(hits[i].detid);
-      //map_gps[hits[i].center.z()]=hits[i].center;
+      map_gps[hits[i].layer]=hits[i].center;
       vec_x.push_back(hits[i].center.x());
       vec_y.push_back(hits[i].center.y());
       vec_z.push_back(hits[i].center.z());
@@ -814,19 +880,26 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
         // KF 
         int kf_compatible=0;
+        int kf_contained=0;
+        int kf_inSensor=0;
 
         int layer = recHitTools_.getLayerWithOffset(detid_);
 
-        /*
-        DetId closest_detid;
-        if (detector == "Sc") closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCell(gp);
-        else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true);
-        if(detid_==closest_detid){
-          compatible=1;
-        }
-        */
         if (std::find(map_detid_kf[layer].begin(), map_detid_kf[layer].end(), static_cast<int32_t>(detid_())) != map_detid_kf[layer].end()) {
           kf_compatible=1;
+
+          //
+          DetId closest_detid;
+          auto gp = map_gps_kf[layer];
+          if (detector == "Sc") closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCell(gp);
+          else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true);
+          if(detid_==closest_detid){
+            kf_contained=1;
+          }
+
+          if (inSensorCell(detid_, gp)){
+            kf_inSensor=1;
+          }
         }
         /*
         if (detid_()==static_cast<uint32_t>(map_detid_kf[layer])){
@@ -847,6 +920,9 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_cov_xy.push_back(lerr.xy());
         sim_cov_yy.push_back(lerr.yy());
         sim_kf_compatible.push_back(kf_compatible);
+        sim_kf_contained.push_back(kf_contained);
+        sim_kf_inSensor.push_back(kf_inSensor);
+
         sim_evt.push_back(eventnr);
         sim_obj_id.push_back(obj_id);
         sim_pid.push_back(pid);
@@ -865,6 +941,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_cov_xy.push_back(lerr.xy());
           rec_cov_yy.push_back(lerr.yy()); 
           rec_kf_compatible.push_back(kf_compatible);
+          rec_kf_contained.push_back(kf_contained);
+          rec_kf_inSensor.push_back(kf_inSensor);
           rec_evt.push_back(eventnr);
           rec_obj_id.push_back(obj_id);
           rec_pid.push_back(pid);
@@ -889,6 +967,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   sim_cov_yy.clear();
   sim_evt.clear();
   sim_kf_compatible.clear();
+  sim_kf_contained.clear();
+  sim_kf_inSensor.clear();
   sim_obj_id.clear();
   sim_pid.clear();
   //sim_mask.clear();
@@ -907,6 +987,8 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_cov_yy.clear();
   rec_evt.clear();
   rec_kf_compatible.clear();
+  rec_kf_contained.clear();
+  rec_kf_inSensor.clear();
   rec_obj_id.clear();
   rec_pid.clear();
   //rec_mask.clear();
