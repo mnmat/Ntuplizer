@@ -41,25 +41,7 @@ process.TFileService = cms.Service("TFileService",
                                    closeFileFast = cms.untracked.bool(True)
                                )
 
-
-process.demo = cms.EDAnalyzer('Ntuplizer',
-   caloParticles = cms.InputTag("mix", "MergedCaloTruth"),
-   Tracksters = cms.InputTag("ticlTrackstersMerge","","RECO"),
-   hgcalRecHitsEE = cms.InputTag("HGCalRecHit", "HGCEERecHits"),
-   hgcalRecHitsFH = cms.InputTag("HGCalRecHit", "HGCHEFRecHits"),
-   hgcalRecHitsBH = cms.InputTag("HGCalRecHit", "HGCHEBRecHits"),
-   KFHits = cms.InputTag("ticlTrackstersKalmanFilter","KFHits","RECO"),
-   PropHits = cms.InputTag("ticlTrackstersKalmanFilter","PropHits","RECO"),
-   #PropHits = cms.InputTag("ticlTrackstersKF","PropHits","RECO"),
-   hgcalLayerClusters = cms.InputTag("hgcalLayerClusters", "", "RECO"),
-   tracks    = cms.untracked.InputTag('generalTracks'),
-   lcMask = cms.InputTag("ticlTrackstersCLUE3DHigh",""),
-   associators = cms.untracked.VInputTag("trackingParticleRecoTrackAsssociation"),
-   simVertices = cms.InputTag("g4SimHits"),
-   eta = cms.string(eta),
-   energy = cms.string(energy), 
-   outdir = cms.string(input_dir), 
-   #trackPtMin = cms.double(0.3)
-    )
+from Analyzers.Ntuplizer.Ntuplizer_cfi import ntuplizer
+process.demo = ntuplizer.clone()
 process.p = cms.Path(process.demo)
 

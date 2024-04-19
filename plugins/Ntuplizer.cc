@@ -150,20 +150,15 @@ private:
   std::vector<edm::EDGetTokenT<reco::RecoToSimCollection>> associatormapRtSs;
   edm::EDGetTokenT<std::vector<SimVertex>> simVerticesToken_;
 
-
-
-  TTree *tree = new TTree("tree","tree");
-
   std::vector<std::string> detectors, objects, positions, hittypes;
+
 
   // variables
   
   int eventnr =0;
-  std::string eta_;
-  std::string energy_;
-  std::string outdir_;
   std::shared_ptr<hgcal::RecHitTools> recHitTools;
 
+  TTree* tree;
 
   // KF
 
@@ -286,10 +281,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
       tracksToken_(consumes<edm::View<reco::Track>>(iConfig.getUntrackedParameter<edm::InputTag>("tracks"))),
       lcMaskToken_(consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("lcMask"))),
       associators(iConfig.getUntrackedParameter<std::vector<edm::InputTag>>("associators")),
-      simVerticesToken_(consumes<std::vector<SimVertex>>(iConfig.getParameter<edm::InputTag>("simVertices"))),
-      eta_(iConfig.getParameter<std::string>("eta")),
-      energy_(iConfig.getParameter<std::string>("energy")),
-      outdir_(iConfig.getParameter<std::string>("outdir")){
+      simVerticesToken_(consumes<std::vector<SimVertex>>(iConfig.getParameter<edm::InputTag>("simVertices"))){
 
 
   associatormapRtSs.push_back(consumes<reco::RecoToSimCollection>(associators[0]));
@@ -300,10 +292,9 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   positions = {"KF","Prop"};
   //recHitTools_.reset(new hgcal::RecHitTools());
   //now do what ever initialization is needed
-  
+
   usesResource("TFileService");
   edm::Service<TFileService> file;
-
   tree = file->make<TTree>("tree","tree");
 
   // SimHits
@@ -407,9 +398,6 @@ Ntuplizer::~Ntuplizer() {
   // (e.g. close files, deallocate resources etc.)
   //
   // please remove this method altogether if it would be left empty
-
-  tree->Write();
-
 }
 
 //
@@ -1069,12 +1057,6 @@ void Ntuplizer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.setUnknown();
   descriptions.addDefault(desc);
-
-  //Specify that only 'tracks' is allowed
-  //To use, remove the default given above and uncomment below
-  //ParameterSetDescription desc;
-  //desc.addUntracked<edm::InputTag>("tracks","ctfWithMaterialTracks");
-  //descriptions.addWithDefaultLabel(desc);
 }
 
 //define this as a plug-in
