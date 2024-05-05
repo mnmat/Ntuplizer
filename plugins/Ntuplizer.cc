@@ -158,8 +158,10 @@ private:
   int eventnr =0;
   std::shared_ptr<hgcal::RecHitTools> recHitTools;
 
-  TTree* tree;
-
+  TTree* simhitTree;
+  TTree* rechitTree;
+  TTree* kfhitTree;
+  TTree* prophitTree;
   // KF
 
   std::vector<float> kf_x;
@@ -295,96 +297,100 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
 
   usesResource("TFileService");
   edm::Service<TFileService> file;
-  tree = file->make<TTree>("tree","tree");
+  simhitTree = file->make<TTree>("SimHit","SimHit");
+  rechitTree = file->make<TTree>("RecHit","RecHit");
+  kfhitTree = file->make<TTree>("KFHit","KFHit");
+  prophitTree = file->make<TTree>("PropHit","PropHit");
+
 
   // SimHits
 
-  tree->Branch("sim_x", &sim_x);
-  tree->Branch("sim_y", &sim_y);
-  tree->Branch("sim_z", &sim_z);
-  tree->Branch("sim_e", &sim_e);
-  tree->Branch("sim_layer", &sim_layer);
-  tree->Branch("sim_detid", &sim_detid);
-  tree->Branch("sim_dtype", &sim_dtype);
-  tree->Branch("sim_cov_xx", &sim_cov_xx);
-  tree->Branch("sim_cov_xy", &sim_cov_xy);
-  tree->Branch("sim_cov_yy", &sim_cov_yy);
-  tree->Branch("sim_evt", &sim_evt);
-  tree->Branch("sim_kf_compatible", &sim_kf_compatible);
-  tree->Branch("sim_kf_contained", &sim_kf_contained);
-  tree->Branch("sim_kf_inSensor", &sim_kf_inSensor);
-  tree->Branch("sim_obj_id", &sim_obj_id);
-  tree->Branch("sim_pid", &sim_pid);
-  //tree->Branch("sim_mask", &sim_mask);
+  simhitTree->Branch("x", &sim_x);
+  simhitTree->Branch("y", &sim_y);
+  simhitTree->Branch("z", &sim_z);
+  simhitTree->Branch("e", &sim_e);
+  simhitTree->Branch("layer", &sim_layer);
+  simhitTree->Branch("detid", &sim_detid);
+  simhitTree->Branch("dtype", &sim_dtype);
+  simhitTree->Branch("cov_xx", &sim_cov_xx);
+  simhitTree->Branch("cov_xy", &sim_cov_xy);
+  simhitTree->Branch("cov_yy", &sim_cov_yy);
+  simhitTree->Branch("evt", &sim_evt);
+  simhitTree->Branch("kf_compatible", &sim_kf_compatible);
+  simhitTree->Branch("kf_contained", &sim_kf_contained);
+  simhitTree->Branch("kf_inSensor", &sim_kf_inSensor);
+  simhitTree->Branch("obj_id", &sim_obj_id);
+  simhitTree->Branch("pid", &sim_pid);
+  //simhitTree->Branch("sim_mask", &sim_mask);
 
   // RecHits
 
-  tree->Branch("rec_x", &rec_x);
-  tree->Branch("rec_y", &rec_y);
-  tree->Branch("rec_z", &rec_z);
-  tree->Branch("rec_e", &rec_e);
-  tree->Branch("rec_layer", &rec_layer);
-  tree->Branch("rec_detid", &rec_detid);
-  tree->Branch("rec_dtype", &rec_dtype);
-  tree->Branch("rec_cov_xx", &rec_cov_xx);
-  tree->Branch("rec_cov_xy", &rec_cov_xy);
-  tree->Branch("rec_cov_yy", &rec_cov_yy);
-  tree->Branch("rec_evt", &rec_evt);
-  tree->Branch("rec_kf_compatible", &rec_kf_compatible);
-  tree->Branch("rec_kf_contained", &rec_kf_contained);
-  tree->Branch("rec_kf_inSensor", &rec_kf_inSensor);
-  tree->Branch("rec_obj_id", &rec_obj_id);
-  tree->Branch("rec_pid", &rec_pid);
-  //tree->Branch("rec_mask", &rec_mask);
+  rechitTree->Branch("x", &rec_x);
+  rechitTree->Branch("y", &rec_y);
+  rechitTree->Branch("z", &rec_z);
+  rechitTree->Branch("e", &rec_e);
+  rechitTree->Branch("layer", &rec_layer);
+  rechitTree->Branch("detid", &rec_detid);
+  rechitTree->Branch("dtype", &rec_dtype);
+  rechitTree->Branch("cov_xx", &rec_cov_xx);
+  rechitTree->Branch("cov_xy", &rec_cov_xy);
+  rechitTree->Branch("cov_yy", &rec_cov_yy);
+  rechitTree->Branch("evt", &rec_evt);
+  rechitTree->Branch("kf_compatible", &rec_kf_compatible);
+  rechitTree->Branch("kf_contained", &rec_kf_contained);
+  rechitTree->Branch("kf_inSensor", &rec_kf_inSensor);
+  rechitTree->Branch("obj_id", &rec_obj_id);
+  rechitTree->Branch("pid", &rec_pid);
+  //rechitTree->Branch("rec_mask", &rec_mask);
 
   // KF
 
-  tree->Branch("kf_x", &kf_x);
-  tree->Branch("kf_y", &kf_y);
-  tree->Branch("kf_z", &kf_z);
-  tree->Branch("kf_e", &kf_e);
-  tree->Branch("kf_layer", &kf_layer);
-  tree->Branch("kf_detid", &kf_detid);
-  tree->Branch("kf_dtype", &kf_dtype);
-  tree->Branch("kf_cov_xx", &kf_cov_xx);
-  tree->Branch("kf_cov_xy", &kf_cov_xy);
-  tree->Branch("kf_cov_yy", &kf_cov_yy);
-  tree->Branch("kf_evt", &kf_evt);
-  tree->Branch("kf_eta", &kf_eta);
-  tree->Branch("kf_theta", &kf_theta);
-  tree->Branch("kf_track_id", &kf_track_id);
-  tree->Branch("kf_track_charge", &kf_track_charge);
-  tree->Branch("kf_track_momentum", &kf_track_momentum);
-  tree->Branch("kf_track_quality", &kf_track_quality);
-  tree->Branch("kf_track_chi2", &kf_track_chi2);
-  tree->Branch("kf_track_validfraction", &kf_track_validfraction);
-  tree->Branch("kf_track_qoverp", &kf_track_qoverp);
-  tree->Branch("kf_track_algo", &kf_track_algo);
+  kfhitTree->Branch("x", &kf_x);
+  kfhitTree->Branch("y", &kf_y);
+  kfhitTree->Branch("z", &kf_z);
+  kfhitTree->Branch("e", &kf_e);
+  kfhitTree->Branch("layer", &kf_layer);
+  kfhitTree->Branch("detid", &kf_detid);
+  kfhitTree->Branch("dtype", &kf_dtype);
+  kfhitTree->Branch("cov_xx", &kf_cov_xx);
+  kfhitTree->Branch("cov_xy", &kf_cov_xy);
+  kfhitTree->Branch("cov_yy", &kf_cov_yy);
+  kfhitTree->Branch("evt", &kf_evt);
+  kfhitTree->Branch("eta", &kf_eta);
+  kfhitTree->Branch("theta", &kf_theta);
+  kfhitTree->Branch("track_id", &kf_track_id);
+  kfhitTree->Branch("track_charge", &kf_track_charge);
+  kfhitTree->Branch("track_momentum", &kf_track_momentum);
+  kfhitTree->Branch("track_quality", &kf_track_quality);
+  kfhitTree->Branch("track_chi2", &kf_track_chi2);
+  kfhitTree->Branch("track_validfraction", &kf_track_validfraction);
+  kfhitTree->Branch("track_qoverp", &kf_track_qoverp);
+  kfhitTree->Branch("track_algo", &kf_track_algo);
 
 
     // Prop
 
-  tree->Branch("prop_x", &prop_x);
-  tree->Branch("prop_y", &prop_y);
-  tree->Branch("prop_z", &prop_z);
-  tree->Branch("prop_e", &prop_e);
-  tree->Branch("prop_layer", &prop_layer);
-  tree->Branch("prop_detid", &prop_detid);
-  tree->Branch("prop_dtype", &prop_dtype);
-  tree->Branch("prop_cov_xx", &prop_cov_xx);
-  tree->Branch("prop_cov_xy", &prop_cov_xy);
-  tree->Branch("prop_cov_yy", &prop_cov_yy);
-  tree->Branch("prop_evt", &prop_evt);
-  tree->Branch("prop_eta", &prop_eta);
-  tree->Branch("prop_theta", &prop_theta);
-  tree->Branch("prop_track_id", &prop_track_id);
-  tree->Branch("prop_track_charge", &prop_track_charge);
-  tree->Branch("prop_track_momentum", &prop_track_momentum);
-  tree->Branch("prop_track_quality", &prop_track_quality);
-  tree->Branch("prop_track_chi2", &prop_track_chi2);
-  tree->Branch("prop_track_validfraction", &prop_track_validfraction);
-  tree->Branch("prop_track_qoverp", &prop_track_qoverp);
-  tree->Branch("prop_track_algo", &prop_track_algo);
+  prophitTree->Branch("x", &prop_x);
+  prophitTree->Branch("y", &prop_y);
+  prophitTree->Branch("z", &prop_z);
+  prophitTree->Branch("e", &prop_e);
+  prophitTree->Branch("layer", &prop_layer);
+  prophitTree->Branch("detid", &prop_detid);
+  prophitTree->Branch("dtype", &prop_dtype);
+  prophitTree->Branch("cov_xx", &prop_cov_xx);
+  prophitTree->Branch("cov_xy", &prop_cov_xy);
+  prophitTree->Branch("cov_yy", &prop_cov_yy);
+  prophitTree->Branch("evt", &prop_evt);
+  prophitTree->Branch("eta", &prop_eta);
+  prophitTree->Branch("theta", &prop_theta);
+  prophitTree->Branch("track_id", &prop_track_id);
+  prophitTree->Branch("track_charge", &prop_track_charge);
+  prophitTree->Branch("track_momentum", &prop_track_momentum);
+  prophitTree->Branch("track_quality", &prop_track_quality);
+  prophitTree->Branch("track_chi2", &prop_track_chi2);
+  prophitTree->Branch("track_validfraction", &prop_track_validfraction);
+  prophitTree->Branch("track_qoverp", &prop_track_qoverp);
+  prophitTree->Branch("track_algo", &prop_track_algo);
 
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
@@ -941,7 +947,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     }
     obj_id++;
   }
-  tree->Fill();
+  
+  simhitTree->Fill();
+  rechitTree->Fill();
+  kfhitTree->Fill();
+  prophitTree->Fill();
 
   sim_x.clear();
   sim_y.clear();
