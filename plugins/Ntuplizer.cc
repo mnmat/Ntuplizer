@@ -295,7 +295,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
 
   usesResource("TFileService");
   edm::Service<TFileService> file;
-  tree = file->make<TTree>("tree","tree");
+  tree = file->make<TTree>("tree","tree"); // Replace this with an input tree value?
 
   // SimHits
 
@@ -690,7 +690,6 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     std::cout << "No Signal found!!!!!!" << std::endl;
     return;
   }
-  std::cout << "Number of Signal Ids: " << signalIdx.size() << std::endl; 
 
 
   std::map<int, GlobalPoint> map_gps_kf, map_gps_prop;
@@ -719,6 +718,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 */
   // KF Hits
 
+  std::cout << "Fill KFHits" << std::endl;
   for (const auto& pos:positions){
     auto &hits = (pos=="KF")? kfhits:prophits;
     auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
@@ -749,7 +749,6 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
     for(int i = 0;i<int(hits.size());i++){
       if (signalIdx[0] != hits[i].trackId) continue;
-
       std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(hits[i].detid);
       float e = 0;
       if (itcheck != hitMap.end()){
@@ -789,8 +788,6 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       } 
 
       int tkId = hits[i].trackId;
-      std::cout << "Track Reco algo: " << tkx[tkId].algoName()<< ", "<< tkx[tkId].algo() << std::endl;
-      std::cout << "Track Quality: " <<  tkx[tkId].qualityMask() << std::endl;
 
       map_detid[hits[i].layer].push_back(hits[i].detid);
       map_gps[hits[i].layer]=hits[i].center;
