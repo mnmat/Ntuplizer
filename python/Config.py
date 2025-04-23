@@ -14,11 +14,11 @@ process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(-1))
 import sys
 import os
 
-eta = sys.argv[2]
-energy = sys.argv[3]
-nevents = sys.argv[4]
-idx = sys.argv[5]
-input_dir = sys.argv[6]
+eta = sys.argv[1]
+energy = sys.argv[2]
+nevents = sys.argv[3]
+idx = sys.argv[4]
+input_dir = sys.argv[5]
 
 eta = eta.replace(".","")
 

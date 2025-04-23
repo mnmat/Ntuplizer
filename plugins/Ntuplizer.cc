@@ -77,6 +77,8 @@
 #include "SimTracker/Common/interface/TrackingParticleSelector.h"
 #include "CommonTools/RecoAlgos/interface/RecoTrackSelectorBase.h"
 
+#include <Eigen/Dense>
+
 //ROOT includes
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "TTree.h"
@@ -121,6 +123,9 @@ private:
   void analyze(const edm::Event&, const edm::EventSetup&) override;
   void endJob() override;
   bool inSensorCell(DetId detid_, GlobalPoint point);
+  bool isPureHit(DetId detid_, GlobalPoint point,AlgebraicSymMatrix22 cov);
+  bool isPureHit_approx(DetId detid_, GlobalPoint point,AlgebraicSymMatrix22 cov);
+
   void clear_arrays();
   virtual void fillHitMap(std::map<DetId, std::pair<const HGCRecHit*,float>>& hitMap, 
       const HGCRecHitCollection& rechitsEE, 
@@ -128,9 +133,19 @@ private:
       const HGCRecHitCollection& rechitsBH,
       const std::vector<float>& lcmask) const;
   std::vector<int> matchRecHit2CPRecHits(DetId detid_, std::vector<DetId> rechitdetid_);
+  float calculateAreaHex(DetId id,  const HGCalDDDConstants* ddd) const;
+  float calculateAreaScint(DetId id,  const HGCalDDDConstants* ddd) const;
   LocalError calculateLocalError(DetId detid_, const HGCalDDDConstants* ddd);
+  
+  std::pair<float, float> get_eigenvalues(AlgebraicSymMatrix22 cov);
+  float get_theta(AlgebraicSymMatrix22 cov);
+  AlgebraicVector2 transform_coordinates(AlgebraicVector2 points, float theta, AlgebraicVector2 center);
+  std::pair<float, float> parametrize_line(AlgebraicVector2 p1, AlgebraicVector2 p2);
+  bool check_intersection_ellipse_line(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2);
+  bool check_intersection_ellipse_point(float axis, float p);
+  bool check_intersection(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2);
 
-
+  
   hgcal::RecHitTools recHitTools_;
 
   // ----------member data ---------------------------
@@ -155,7 +170,7 @@ private:
 
   // variables
   
-  int eventnr =0;
+  // int eventnr =0;
   std::shared_ptr<hgcal::RecHitTools> recHitTools;
 
   TTree* tree;
@@ -184,6 +199,14 @@ private:
   std::vector<float> kf_track_validfraction;
   std::vector<float> kf_track_qoverp;
   std::vector<float> kf_track_algo;
+  std::vector<float> kf_meas_x;
+  std::vector<float> kf_meas_y;
+  std::vector<float> kf_meas_z;
+  std::vector<int> kf_rec_compatible;
+  std::vector<int> kf_rec_isclosest;
+  std::vector<int> kf_rec_inSensor;
+  std::vector<int> kf_rec_pureHit;
+  std::vector<int> kf_rec_pureHit_approx;
 
   // Prop
 
@@ -209,6 +232,14 @@ private:
   std::vector<float> prop_track_validfraction;
   std::vector<float> prop_track_qoverp;
   std::vector<float> prop_track_algo;
+  std::vector<float> prop_meas_x;
+  std::vector<float> prop_meas_y;
+  std::vector<float> prop_meas_z;
+  std::vector<int> prop_rec_compatible;
+  std::vector<int> prop_rec_isclosest;
+  std::vector<int> prop_rec_inSensor;
+  std::vector<int> prop_rec_pureHit;
+  std::vector<int> prop_rec_pureHit_approx;
 
     // RecHits
 
@@ -226,8 +257,11 @@ private:
   std::vector<int> rec_kf_compatible;
   std::vector<int> rec_kf_contained;
   std::vector<int> rec_kf_inSensor;
+  std::vector<int> rec_kf_pureHit;
+  std::vector<int> rec_kf_pureHit_approx;
   std::vector<int> rec_obj_id;
   std::vector<int> rec_pid;
+  std::vector<int> rec_simcluster_id;
   //std::vector<float> rec_mask;
 
 
@@ -247,8 +281,11 @@ private:
   std::vector<int> sim_kf_compatible;
   std::vector<int> sim_kf_contained;
   std::vector<int> sim_kf_inSensor;
+  std::vector<int> sim_kf_pureHit;
+  std::vector<int> sim_kf_pureHit_approx;
   std::vector<int> sim_obj_id;
   std::vector<int> sim_pid;
+  std::vector<int> sim_simcluster_id;
   //std::vector<float> sim_mask;
 
 
@@ -313,8 +350,11 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("sim_kf_compatible", &sim_kf_compatible);
   tree->Branch("sim_kf_contained", &sim_kf_contained);
   tree->Branch("sim_kf_inSensor", &sim_kf_inSensor);
+  tree->Branch("sim_kf_pureHit", &sim_kf_pureHit);
+  tree->Branch("sim_kf_pureHit_approx", &sim_kf_pureHit_approx);
   tree->Branch("sim_obj_id", &sim_obj_id);
   tree->Branch("sim_pid", &sim_pid);
+  tree->Branch("sim_simcluster_id", &sim_simcluster_id);
   //tree->Branch("sim_mask", &sim_mask);
 
   // RecHits
@@ -333,8 +373,11 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_kf_compatible", &rec_kf_compatible);
   tree->Branch("rec_kf_contained", &rec_kf_contained);
   tree->Branch("rec_kf_inSensor", &rec_kf_inSensor);
+  tree->Branch("rec_kf_pureHit", &rec_kf_pureHit);
+  tree->Branch("rec_kf_pureHit_approx", &rec_kf_pureHit_approx);
   tree->Branch("rec_obj_id", &rec_obj_id);
   tree->Branch("rec_pid", &rec_pid);
+  tree->Branch("rec_simcluster_id", &rec_simcluster_id);
   //tree->Branch("rec_mask", &rec_mask);
 
   // KF
@@ -342,6 +385,9 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_x", &kf_x);
   tree->Branch("kf_y", &kf_y);
   tree->Branch("kf_z", &kf_z);
+  tree->Branch("kf_meas_x", &kf_meas_x);
+  tree->Branch("kf_meas_y", &kf_meas_y);
+  tree->Branch("kf_meas_z", &kf_meas_z);
   tree->Branch("kf_e", &kf_e);
   tree->Branch("kf_layer", &kf_layer);
   tree->Branch("kf_detid", &kf_detid);
@@ -360,13 +406,20 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_track_validfraction", &kf_track_validfraction);
   tree->Branch("kf_track_qoverp", &kf_track_qoverp);
   tree->Branch("kf_track_algo", &kf_track_algo);
-
+  tree->Branch("kf_rec_compatible", &kf_rec_compatible);
+  tree->Branch("kf_rec_isclosest", &kf_rec_isclosest);
+  tree->Branch("kf_rec_inSensor", &kf_rec_inSensor);
+  tree->Branch("kf_rec_pureHit", &kf_rec_pureHit);
+  tree->Branch("kf_rec_pureHit_approx", &kf_rec_pureHit_approx);
 
     // Prop
 
   tree->Branch("prop_x", &prop_x);
   tree->Branch("prop_y", &prop_y);
   tree->Branch("prop_z", &prop_z);
+  tree->Branch("prop_meas_x", &prop_meas_x);
+  tree->Branch("prop_meas_y", &prop_meas_y);
+  tree->Branch("prop_meas_z", &prop_meas_z);
   tree->Branch("prop_e", &prop_e);
   tree->Branch("prop_layer", &prop_layer);
   tree->Branch("prop_detid", &prop_detid);
@@ -385,7 +438,11 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("prop_track_validfraction", &prop_track_validfraction);
   tree->Branch("prop_track_qoverp", &prop_track_qoverp);
   tree->Branch("prop_track_algo", &prop_track_algo);
-
+  tree->Branch("prop_rec_compatible", &prop_rec_compatible);
+  tree->Branch("prop_rec_isclosest", &prop_rec_isclosest);
+  tree->Branch("prop_rec_inSensor", &prop_rec_inSensor);
+  tree->Branch("prop_rec_pureHit", &prop_rec_pureHit);
+  tree->Branch("prop_rec_pureHit_approx", &prop_rec_pureHit_approx);
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   setupDataToken_ = esConsumes<SetupData, SetupRecord>();
@@ -406,17 +463,12 @@ Ntuplizer::~Ntuplizer() {
 
 // ------------ method called for each event  ------------
 
-LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd){
-  if(recHitTools_.isSilicon(id)){
-    float A;
-    if(recHitTools_.getSiThickness(id) < 200) A = 1.18; // TODO: replace with non-hardcoded value; hardcoded value from TDR
-    else  A = 0.52; // TODO: replace with non-hardcoded value; hardcoded value from TDR
-    float a = sqrt(2*A/(3*sqrt(3)));
-    double varx = pow(a,4)*5*sqrt(3)/(16*A); // x
-    double vary = pow(a,4)*5*sqrt(3)/(16*A); // y 
-    return LocalError(varx, 0, vary);
-  }
-  else{
+float Ntuplizer::calculateAreaHex(DetId id,  const HGCalDDDConstants* ddd) const {
+  if(recHitTools_.getSiThickness(id) < 200) return 1.18; // TODO: replace with non-hardcoded value; hardcoded value from TDR
+  else  return 0.52; // TODO: replace with non-hardcoded value; hardcoded value from TDR
+}
+
+float Ntuplizer::calculateAreaScint(DetId id, const HGCalDDDConstants* ddd) const{
     const GlobalPoint &pos = recHitTools_.getPosition(id);
     double r = sqrt(pos.x()*pos.x() + pos.y()*pos.y());
     auto radiusLayer = ddd->getRadiusLayer(recHitTools_.getLayer(id));
@@ -430,6 +482,32 @@ LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd
     double phimax = phi + 0.5*dphi;
 
     double A = (rmax*rmax - rmin*rmin)*M_PI*dphi/(2*M_PI);
+    return A;
+}
+
+LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd){
+  if(recHitTools_.isSilicon(id)){
+    float A = calculateAreaHex(id,ddd);
+    float a = sqrt(2*A/(3*sqrt(3)));
+    double varx = pow(a,4)*5*sqrt(3)/(16*A); // x
+    double vary = pow(a,4)*5*sqrt(3)/(16*A); // y 
+    return LocalError(varx, 0, vary);
+  }
+  else{
+    float A = calculateAreaScint(id, ddd);
+
+    // Exact solution but error prone due to numerical limitations
+    const GlobalPoint &pos = recHitTools_.getPosition(id);
+    double r = sqrt(pos.x()*pos.x() + pos.y()*pos.y());
+    auto radiusLayer = ddd->getRadiusLayer(recHitTools_.getLayer(id));
+    int idx = static_cast<int>(std::lower_bound(radiusLayer.begin(), radiusLayer.end(),r)-radiusLayer.begin());
+    float rmax = radiusLayer[idx];
+    float rmin = radiusLayer[idx-1];
+
+    double phi = recHitTools_.getPhi(id) + M_PI; // radians [0, 2pi]
+    double dphi = recHitTools_.getScintDEtaDPhi(id).second; // radians
+    double phimin = phi - 0.5*dphi;
+    double phimax = phi + 0.5*dphi;
 
     double ex2 = 1/(8*A) * (pow(rmax,4) - pow(rmin,4)) * (-phimin - sin(phimin)*cos(phimin) + phimax + sin(phimax)*cos(phimax));
     double ex = 1/(3*A) * (pow(rmax,3) - pow(rmin,3)) * (sin(phimax) - sin(phimin));
@@ -444,6 +522,165 @@ LocalError Ntuplizer::calculateLocalError(DetId id, const HGCalDDDConstants* ddd
   }
 } 
 
+std::pair<float, float> Ntuplizer::get_eigenvalues(AlgebraicSymMatrix22 cov){
+  Eigen::Matrix2f ell;
+  std::pair<float, float> res;
+  ell << cov[0][0], cov[0][1], cov[1][0], cov[1][1];
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> eigensolver(ell);
+  if (eigensolver.info() != Eigen::Success){
+    res.first = cov[0][0];
+    res.second =  cov[1][1];
+  } else {
+    auto eigenvalues = eigensolver.eigenvalues();
+    res.first = eigenvalues[0];
+    res.second = eigenvalues[1];
+  }
+  return res;
+}
+
+float Ntuplizer::get_theta(AlgebraicSymMatrix22 cov){
+  float a = cov[0][0];
+  float b = cov[1][0];
+  float c = cov[1][1];
+  return atan(2*b/(c-a))/2;
+}
+
+AlgebraicVector2 Ntuplizer::transform_coordinates(AlgebraicVector2 point, float theta, AlgebraicVector2 center){
+  AlgebraicMatrix22 r;
+  r[0][0] = cos(-theta);
+  r[0][1] = -sin(-theta);
+  r[1][0] = sin(theta);
+  r[1][1] = cos(theta);
+  auto shifted = point - center;
+  auto rotated = r*point;
+  return shifted;
+}
+
+std::pair<float, float> Ntuplizer::parametrize_line(AlgebraicVector2 p1, AlgebraicVector2 p2){
+  std::pair<float, float> ret;
+  float x1 = p1[0];
+  float y1 = p1[1];
+  float x2 = p2[0];
+  float y2 = p2[1];
+
+  float k = (y2 - y1)/(x2-x1);
+  float d = (x2*y1-x1*y2)/(x2-x1);
+  ret.first = k;
+  ret.second = d;
+  return ret;
+}
+
+bool Ntuplizer::check_intersection_ellipse_line(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2){
+  std::pair<float, float> line = parametrize_line(p1,p2);
+  float mbd = std::sqrt(5.991);
+  float major = eigenvalues.first*mbd;
+  float minor = eigenvalues.second*mbd;
+  float major2 = std::pow(major,2);
+  float minor2 = std::pow(minor,2);
+  float k = line.first;
+  float d = line.second;
+  float A = major2*std::pow(k,2)+minor2;
+  float B = 2*k*d*major2;
+  float C = std::pow(d,2)*major2 - major2*minor2;
+  if (std::pow(B,2) < 4*A*C){
+    return false;
+  } else {
+    return true;
+  }
+
+}
+
+bool Ntuplizer::check_intersection_ellipse_point(float axis, float p){
+  if (axis < abs(p)){
+    return false;
+  } else {
+    return true;
+  }
+}
+
+bool Ntuplizer::check_intersection(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2){
+  if (p1[0] == p2[0]){
+    return check_intersection_ellipse_point(eigenvalues.first,p1[0]);
+  } else {
+    return check_intersection_ellipse_line(eigenvalues,p1,p2);
+  }
+}
+
+bool Ntuplizer::isPureHit(DetId detid_, GlobalPoint point,AlgebraicSymMatrix22 cov){
+  // Get Coordinates
+  auto x = point.x();
+  auto y = point.y();
+  AlgebraicVector2 center = AlgebraicVector2(x,y);
+  
+  // GetCorners
+  // std::cout << "Get Corners" << std::endl;
+  auto hgcalgeometry = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+  auto corners = hgcalgeometry->getCorners(detid_);
+
+  // Calculate eigenvalues
+  // std::cout << "Get Eigenvalues" << std::endl;
+  std::pair<float, float> eigenvalues = get_eigenvalues(cov);
+
+  // Calculate Rotation Matrix
+  
+  // std::cout << "Get Theta" << std::endl;
+  float theta = get_theta(cov);
+
+  // Coordinate transform of corners
+  // std::cout << "Coordinate Transform" << std::endl;
+  std::vector<AlgebraicVector2> transformed_corners;
+  for (auto& point: corners){
+    AlgebraicVector2 p = AlgebraicVector2(point.x(),point.y());
+    transformed_corners.push_back(transform_coordinates(p,theta,center));
+  }
+
+  // Check for boundary crossing
+  // std::cout << "check boundary crossing" << std::endl;
+  int cornerSize = 8;
+  bool check_intersect = false;
+  for (int i = 1; i < cornerSize; i++){
+    check_intersect = check_intersection(eigenvalues,transformed_corners[i], transformed_corners[i+1]);
+    if (check_intersect) return false;
+  }
+  return true;
+}
+
+bool Ntuplizer::isPureHit_approx(DetId detid_, GlobalPoint point,AlgebraicSymMatrix22 cov){
+  
+  // Calculate eigenvalues
+  // std::cout << "isPureHit_approx: Get Eigenvalues" << std::endl;
+  std::pair<float, float> eigenvalues = get_eigenvalues(cov);
+
+  // Calculate Area of Confidence ellipse
+  float mbd = std::sqrt(5.991);
+  float area_tsos = M_PI*eigenvalues.first*eigenvalues.second*mbd*mbd;
+
+  // Calculate fraction
+  // std::cout << "isPureHit_approx: Calculate Fraction" << std::endl;
+  auto hgcalgeometry = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+  // std::cout << "Get Area" << std::endl;
+  float area_sensor = hgcalgeometry->getArea(detid_);
+  // std::cout << "Successfully gotten area" << std::endl;
+  float frac = area_tsos/area_sensor;
+
+  if (frac>1){
+    return false;
+  }
+
+  // Check if tsos falls within scaled circle
+  // std::cout << "isPureHit_approx: Perform Check" << std::endl;
+
+  auto center = recHitTools_.getPosition(detid_);
+  auto diff = point - center;
+  float dist = std::sqrt(diff.x()*diff.x() - diff.y()*diff.y());
+  float radius = std::sqrt(area_sensor/M_PI*(1-frac));
+  if (radius > dist) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool Ntuplizer::inSensorCell(DetId detid_, GlobalPoint point){
   // inSensorCell checks both hexagonal cells and the trapezoid based on the corners stored in the hgcalGeometry.
   // The corners are stored in a counter clockwise fashion.
@@ -456,17 +693,18 @@ bool Ntuplizer::inSensorCell(DetId detid_, GlobalPoint point){
   
   // GetCorners
   auto hgcalgeometry = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+  // std::cout << "DetId present in hgcalgeometry? " << hgcalgeometry->present(detid_) << std::endl;
   auto corners = hgcalgeometry->getCorners(detid_);
 
   /*
-  std::cout << "v1=["<<corners[0].x()<<","<<corners[0].y()<<","<<corners[0].z()<<"]" << std::endl;
-  std::cout << "v2=["<<corners[1].x()<<","<<corners[1].y()<<","<<corners[1].z()<<"]" << std::endl;
-  std::cout << "v3=["<<corners[2].x()<<","<<corners[2].y()<<","<<corners[2].z()<<"]" << std::endl;
-  std::cout << "v4=["<<corners[3].x()<<","<<corners[3].y()<<","<<corners[3].z()<<"]" << std::endl;
-  std::cout << "v5=["<<corners[4].x()<<","<<corners[4].y()<<","<<corners[4].z()<<"]" << std::endl;
-  std::cout << "v6=["<<corners[5].x()<<","<<corners[5].y()<<","<<corners[5].z()<<"]" << std::endl;
-  std::cout << "v7=["<<corners[6].x()<<","<<corners[6].y()<<","<<corners[6].z()<<"]" << std::endl;
-  std::cout << "p=["<<point.x()<<","<<point.y()<<","<<point.z()<<"]" << std::endl;
+  // std::cout << "v1=["<<corners[0].x()<<","<<corners[0].y()<<","<<corners[0].z()<<"]" << std::endl;
+  // std::cout << "v2=["<<corners[1].x()<<","<<corners[1].y()<<","<<corners[1].z()<<"]" << std::endl;
+  // std::cout << "v3=["<<corners[2].x()<<","<<corners[2].y()<<","<<corners[2].z()<<"]" << std::endl;
+  // std::cout << "v4=["<<corners[3].x()<<","<<corners[3].y()<<","<<corners[3].z()<<"]" << std::endl;
+  // std::cout << "v5=["<<corners[4].x()<<","<<corners[4].y()<<","<<corners[4].z()<<"]" << std::endl;
+  // std::cout << "v6=["<<corners[5].x()<<","<<corners[5].y()<<","<<corners[5].z()<<"]" << std::endl;
+  // std::cout << "v7=["<<corners[6].x()<<","<<corners[6].y()<<","<<corners[6].z()<<"]" << std::endl;
+  // std::cout << "p=["<<point.x()<<","<<point.y()<<","<<point.z()<<"]" << std::endl;
   */
   bool inside = false;
   if (recHitTools_.isSilicon(detid_)){
@@ -515,8 +753,10 @@ void Ntuplizer::clear_arrays(){
   sim_kf_compatible.clear();
   sim_kf_contained.clear();
   sim_kf_inSensor.clear();
+  sim_kf_pureHit.clear();
   sim_obj_id.clear();
   sim_pid.clear();
+  sim_simcluster_id.clear();
   //sim_mask.clear();
 
   // RecHit
@@ -535,8 +775,10 @@ void Ntuplizer::clear_arrays(){
   rec_kf_compatible.clear();
   rec_kf_contained.clear();
   rec_kf_inSensor.clear();
+  rec_kf_pureHit.clear();
   rec_obj_id.clear();
   rec_pid.clear();
+  rec_simcluster_id.clear();
   //rec_mask.clear();
 
   // KF
@@ -544,6 +786,9 @@ void Ntuplizer::clear_arrays(){
   kf_x.clear();
   kf_y.clear();
   kf_z.clear();
+  kf_meas_x.clear();
+  kf_meas_y.clear();
+  kf_meas_z.clear();
   kf_e.clear();
   kf_detid.clear();
   kf_layer.clear();
@@ -562,12 +807,20 @@ void Ntuplizer::clear_arrays(){
   kf_track_validfraction.clear();
   kf_track_qoverp.clear();
   kf_track_algo.clear();
+  kf_rec_compatible.clear();
+  kf_rec_isclosest.clear();
+  kf_rec_inSensor.clear();
+  kf_rec_pureHit.clear();
+  kf_rec_pureHit_approx.clear();
 
   // Prop
 
   prop_x.clear();
   prop_y.clear();
   prop_z.clear();
+  prop_meas_x.clear();
+  prop_meas_y.clear();
+  prop_meas_z.clear();
   prop_e.clear();
   prop_detid.clear();
   prop_layer.clear();
@@ -586,6 +839,12 @@ void Ntuplizer::clear_arrays(){
   prop_track_validfraction.clear();
   prop_track_qoverp.clear();
   prop_track_algo.clear();
+  prop_rec_compatible.clear();
+  prop_rec_isclosest.clear();
+  prop_rec_inSensor.clear();
+  prop_rec_pureHit.clear();
+  prop_rec_pureHit_approx.clear();
+
 }
 
 void Ntuplizer::fillHitMap(std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap,
@@ -624,7 +883,9 @@ std::vector<int> Ntuplizer::matchRecHit2CPRecHits(DetId detid_, std::vector<DetI
 void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   using namespace edm;
 
-  //std::cout << "Analyze" << std::endl;
+  //// std::cout << "Analyze" << std::endl;
+
+  auto const& eventnr = iEvent.id().event();
 
   edm::Handle<std::vector<CaloParticle>> CaloParticles;
   iEvent.getByToken(caloParticlesToken_, CaloParticles);
@@ -665,7 +926,6 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   recSimCollP = recotosimCollectionH.product();
   reco::RecoToSimCollection const& recSimColl = *recSimCollP;
 
-
   edm::Handle<std::vector<SimVertex>> simVerticesHandle;
   iEvent.getByToken(simVerticesToken_, simVerticesHandle);
   std::vector<SimVertex> const& simVertices = *simVerticesHandle;
@@ -687,12 +947,12 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
 
   if (signalIdx.size()==0){
-    std::cout << "No Signal found!!!!!!" << std::endl;
+    // std::cout << "No Signal found!!!!!!" << std::endl;
     return;
   }
 
-
   std::map<int, GlobalPoint> map_gps_kf, map_gps_prop;
+  std::map<int, AlgebraicSymMatrix22> map_cov_kf, map_cov_prop;
   std::map<int, std::vector<int>> map_detid_kf,map_detid_prop;
   std::map<float, float> map_xx_kf, map_xy_kf, map_yy_kf, map_xx_prop, map_xy_prop, map_yy_prop;
 
@@ -704,30 +964,35 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
   const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
   //auto radiusLayer = ddd->rangeRLayer(8, true);
-  //std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
+  //// std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
 
   // Test KFHits
 
 /*
-  std::cout << "Test KFHits" << std::endl;
+  // std::cout << "Test KFHits" << std::endl;
   for (const auto& hit: kfhits){
-    std::cout << hit.center.x() << "\t" << hit.center.y() << "\t" << hit.center.z() << "\t" << hit.xx << "\t" << hit.xy << "\t" << hit.yy << "\t" << hit.charge << "\t" << hit.detid << "\t" <<std::endl;
-    std::cout << hit.test[0][0] << "," << hit.test[1][1] << hit.test[2][2] << hit.test[3][3] << hit.test[4][4] << hit.test[5][5] << std::endl;
+    // std::cout << hit.center.x() << "\t" << hit.center.y() << "\t" << hit.center.z() << "\t" << hit.xx << "\t" << hit.xy << "\t" << hit.yy << "\t" << hit.charge << "\t" << hit.detid << "\t" <<std::endl;
+    // std::cout << hit.test[0][0] << "," << hit.test[1][1] << hit.test[2][2] << hit.test[3][3] << hit.test[4][4] << hit.test[5][5] << std::endl;
   }
-  std::cout << "------------------------------------------" << std::endl;
+  // std::cout << "------------------------------------------" << std::endl;
 */
   // KF Hits
 
-  std::cout << "Fill KFHits" << std::endl;
+  // std::cout << "Fill KFHits" << std::endl;
   for (const auto& pos:positions){
     auto &hits = (pos=="KF")? kfhits:prophits;
     auto &map_gps = (pos=="KF")? map_gps_kf:map_gps_prop;
+    auto &map_cov = (pos=="KF")? map_cov_kf:map_cov_prop;
+
     auto &map_detid = (pos=="KF")? map_detid_kf:map_detid_prop;
 
 
     auto &vec_x = (pos=="KF")? kf_x:prop_x;
     auto &vec_y = (pos=="KF")? kf_y:prop_y;
     auto &vec_z = (pos=="KF")? kf_z:prop_z;
+    auto &vec_meas_x = (pos=="KF")? kf_meas_x:prop_meas_x;
+    auto &vec_meas_y = (pos=="KF")? kf_meas_y:prop_meas_y;
+    auto &vec_meas_z = (pos=="KF")? kf_meas_z:prop_meas_z;
     auto &vec_detid = (pos=="KF")? kf_detid:prop_detid;
     auto &vec_layer = (pos=="KF")? kf_layer:prop_layer;
     auto &vec_dtype = (pos=="KF")? kf_dtype:prop_dtype;
@@ -746,9 +1011,15 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_track_validfraction = (pos=="KF")? kf_track_validfraction:prop_track_validfraction;
     auto &vec_track_qoverp = (pos=="KF")? kf_track_qoverp:prop_track_qoverp;
     auto &vec_track_algo = (pos=="KF")? kf_track_algo:prop_track_algo;
+    auto &vec_rec_compatible = (pos=="KF")? kf_rec_compatible:prop_rec_compatible;
+    auto &vec_rec_isclosest = (pos=="KF")? kf_rec_isclosest:prop_rec_isclosest;
+    auto &vec_rec_inSensor = (pos=="KF")? kf_rec_inSensor:prop_rec_inSensor;
+    auto &vec_rec_pureHit = (pos=="KF")? kf_rec_pureHit:prop_rec_pureHit;
+    auto &vec_rec_pureHit_approx = (pos=="KF")? kf_rec_pureHit_approx:prop_rec_pureHit_approx;
 
     for(int i = 0;i<int(hits.size());i++){
       if (signalIdx[0] != hits[i].trackId) continue;
+
       std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(hits[i].detid);
       float e = 0;
       if (itcheck != hitMap.end()){
@@ -762,21 +1033,22 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       
       // TODO: if conditions necessary to deal with missing rechits. Not yet possible to determine area of detector properly
       //       Implement it in such a way that we can find the closest detid and from this determine silicon thickness.
-      if (hits[i].detid==0){
+      auto detid_ = hits[i].detid;
+      if (detid_==0){
         //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
         //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
         detector = "Sc";
         thickness = "None";
         tmp = "Sc";
       }
-      else if((hits[i].detid==8)||(hits[i].detid==9)){
+      else if((detid_==8)||(detid_==9)){
         //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
         //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
         detector = "Si";
         //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
         tmp = detector;
       }
-      else if (recHitTools_.isSilicon(hits[i].detid)){
+      else if (recHitTools_.isSilicon(detid_)){
         detector = "Si";
         thickness = std::to_string(int(recHitTools_.getSiThickness(hits[i].detid))); 
         tmp = detector+" "+thickness;
@@ -787,10 +1059,72 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         tmp = "Sc";
       } 
 
+
+      // KF 
+      int rec_compatible=0;
+      int rec_isclosest=0;
+      int rec_inSensor=0;
+      int rec_pureHit=0;
+      int rec_pureHit_approx=0;
+      if (detid_ > 10){
+        rec_compatible = 1;
+        int layer = recHitTools_.getLayerWithOffset(detid_);
+
+        //
+        DetId closest_detid;
+        auto gp = hits[i].center;
+        AlgebraicSymMatrix22 covariance_matrix;
+        covariance_matrix[0][0] = hits[i].xx;
+        covariance_matrix[0][1] = hits[i].xy;
+        covariance_matrix[1][1] = hits[i].yy;
+        [[maybe_unused]] auto cov = AlgebraicSymMatrix22(covariance_matrix);
+        auto testgeom = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+        if (detector == "Sc"){
+          closest_detid = testgeom->getClosestCell(gp);
+          // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
+        }
+        else {
+          closest_detid = testgeom->getClosestCellHex(gp, false);
+          // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
+        }
+        if(detid_==closest_detid){
+          rec_isclosest=1;
+        }
+
+        // std::cout << "TSOS conditions" << std::endl;
+        // std::cout << "Closest DetId: " << closest_detid.rawId() << ", Det: " << closest_detid.det() << ", Subdet: " << closest_detid.subdetId() << std::endl;
+        // std::cout << "DetId: " << DetId(detid_).rawId() << ", Det: " << DetId(detid_).det() << ", Subdet: " << DetId(detid_).subdetId() << std::endl;
+
+        if (inSensorCell(detid_, gp)){
+          rec_inSensor=1;
+          if (isPureHit(detid_,gp,cov)){
+            rec_pureHit=1;
+          }
+          if (isPureHit_approx(detid_,gp,cov)){
+            rec_pureHit_approx=1;
+          }
+        }
+      }
+
+      if (hits[i].detid > 10){
+        vec_meas_x.push_back(recHitTools_.getPosition(hits[i].detid).x());
+        vec_meas_y.push_back(recHitTools_.getPosition(hits[i].detid).y());
+        vec_meas_z.push_back(recHitTools_.getPosition(hits[i].detid).z());
+      } else {
+        vec_meas_x.push_back(0);
+        vec_meas_y.push_back(0);
+        vec_meas_z.push_back(0);
+      }
+
       int tkId = hits[i].trackId;
 
       map_detid[hits[i].layer].push_back(hits[i].detid);
       map_gps[hits[i].layer]=hits[i].center;
+      AlgebraicSymMatrix22 covariance_matrix;
+      covariance_matrix[0][0] = hits[i].xx;
+      covariance_matrix[0][1] = hits[i].xy;
+      covariance_matrix[1][1] = hits[i].yy;
+      map_cov[hits[i].layer]=AlgebraicSymMatrix22(covariance_matrix);
       vec_x.push_back(hits[i].center.x());
       vec_y.push_back(hits[i].center.y());
       vec_z.push_back(hits[i].center.z());
@@ -812,6 +1146,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       vec_track_validfraction.push_back(hits[i].trackValidFraction);
       vec_track_qoverp.push_back(hits[i].trackQOverP);
       vec_track_algo.push_back(tkx[tkId].algo());
+      vec_rec_compatible.push_back(rec_compatible);
+      vec_rec_isclosest.push_back(rec_isclosest);
+      vec_rec_inSensor.push_back(rec_inSensor);
+      vec_rec_pureHit.push_back(rec_pureHit);
+      vec_rec_pureHit_approx.push_back(rec_pureHit_approx);
     }
   }
   
@@ -831,6 +1170,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto pid = cp.particleId();
     const SimClusterRefVector& simclusters = cp.simClusters();
 
+    int simClusterId = 0;
     for (const auto& it_simc : simclusters){
       const SimCluster& simc = (*(it_simc));
       const auto& sc_hae = simc.hits_and_energies();
@@ -856,17 +1196,18 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         } 
 
         // LocalError
-
         const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(detid_);
         auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
         const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
         auto lerr = calculateLocalError(detid_, ddd); 
-        // std::cout << "Layer: " << layer_ << "\t XX: " << lerr.xx() << std::endl;
+        // // std::cout << "Layer: " << layer_ << "\t XX: " << lerr.xx() << std::endl;
 
         // KF 
         int kf_compatible=0;
         int kf_contained=0;
         int kf_inSensor=0;
+        int kf_pureHit=0;
+        int kf_pureHit_approx=0;
 
         int layer = recHitTools_.getLayerWithOffset(detid_);
 
@@ -876,14 +1217,23 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           //
           DetId closest_detid;
           auto gp = map_gps_kf[layer];
+          auto cov = map_cov_kf[layer];
           if (detector == "Sc") closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCell(gp);
           else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true);
           if(detid_==closest_detid){
             kf_contained=1;
           }
 
+          // std::cout << "Simhit conditions" << std::endl;
           if (inSensorCell(detid_, gp)){
             kf_inSensor=1;
+
+            if (isPureHit(detid_,gp,cov)){
+              kf_pureHit=1;
+            }
+            if (isPureHit_approx(detid_,gp,cov)){
+              kf_pureHit_approx=1;
+            }
           }
         }
         /*
@@ -892,7 +1242,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         }
         */
         
-        //std::cout << (itcheck->second) << std::endl;
+        //// std::cout << (itcheck->second) << std::endl;
 
         sim_x.push_back(recHitTools_.getPosition(detid_).x());
         sim_y.push_back(recHitTools_.getPosition(detid_).y());
@@ -907,10 +1257,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_kf_compatible.push_back(kf_compatible);
         sim_kf_contained.push_back(kf_contained);
         sim_kf_inSensor.push_back(kf_inSensor);
+        sim_kf_pureHit.push_back(kf_pureHit);
+        sim_kf_pureHit_approx.push_back(kf_pureHit_approx);
 
         sim_evt.push_back(eventnr);
         sim_obj_id.push_back(obj_id);
         sim_pid.push_back(pid);
+        sim_simcluster_id.push_back(simClusterId);
         //sim_mask.push_back((itcheck->second));
 
 
@@ -928,13 +1281,17 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_kf_compatible.push_back(kf_compatible);
           rec_kf_contained.push_back(kf_contained);
           rec_kf_inSensor.push_back(kf_inSensor);
+          rec_kf_pureHit.push_back(kf_pureHit);
+          rec_kf_pureHit_approx.push_back(kf_pureHit_approx);
           rec_evt.push_back(eventnr);
           rec_obj_id.push_back(obj_id);
           rec_pid.push_back(pid);
+          rec_simcluster_id.push_back(simClusterId);
           //rec_mask.push_back((itcheck->second));
 
         }
       }
+      simClusterId++;
     }
     obj_id++;
   }
@@ -954,8 +1311,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   sim_kf_compatible.clear();
   sim_kf_contained.clear();
   sim_kf_inSensor.clear();
+  sim_kf_pureHit.clear();
+  sim_kf_pureHit_approx.clear();
   sim_obj_id.clear();
   sim_pid.clear();
+  sim_simcluster_id.clear();
   //sim_mask.clear();
 
   // RecHit
@@ -974,8 +1334,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_kf_compatible.clear();
   rec_kf_contained.clear();
   rec_kf_inSensor.clear();
+  rec_kf_pureHit.clear();
+  rec_kf_pureHit_approx.clear();
   rec_obj_id.clear();
   rec_pid.clear();
+  rec_simcluster_id.clear();
   //rec_mask.clear();
 
   // KF
@@ -983,6 +1346,9 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_x.clear();
   kf_y.clear();
   kf_z.clear();
+  kf_meas_x.clear();
+  kf_meas_y.clear();
+  kf_meas_z.clear();
   kf_e.clear();
   kf_detid.clear();
   kf_layer.clear();
@@ -1001,12 +1367,20 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_track_validfraction.clear();
   kf_track_qoverp.clear();
   kf_track_algo.clear();
+  kf_rec_compatible.clear();
+  kf_rec_isclosest.clear();
+  kf_rec_inSensor.clear();
+  kf_rec_pureHit.clear();
+  kf_rec_pureHit_approx.clear();
   
   // Prop
 
   prop_x.clear();
   prop_y.clear();
   prop_z.clear();
+  prop_meas_x.clear();
+  prop_meas_y.clear();
+  prop_meas_z.clear();
   prop_e.clear();
   prop_detid.clear();
   prop_layer.clear();
@@ -1025,9 +1399,14 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   prop_track_validfraction.clear();
   prop_track_qoverp.clear();
   prop_track_algo.clear();
+  prop_rec_compatible.clear();
+  prop_rec_isclosest.clear();
+  prop_rec_inSensor.clear();
+  prop_rec_pureHit.clear();
+  prop_rec_pureHit_approx.clear();
 
   //clear_arrays();
-  eventnr=eventnr+1;
+  // eventnr=eventnr+1;
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   // if the SetupData is always needed
