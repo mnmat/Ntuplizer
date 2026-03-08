@@ -144,7 +144,9 @@ private:
   bool check_intersection_ellipse_line(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2);
   bool check_intersection_ellipse_point(float axis, float p);
   bool check_intersection(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2);
-
+  std::vector<DetId> getNeighbors(DetId detid_,HGCalTopology& topoEE, HGCalTopology& topoFH, HGCalTopology& topoBH) const;
+  std::pair<int,double> getNeighborHitsAndEnergies(std::vector<DetId> neighbors, std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const;
+  bool inLC(DetId detid_, std::vector<DetId>& lcdetids) const;
   
   hgcal::RecHitTools recHitTools_;
 
@@ -207,6 +209,10 @@ private:
   std::vector<int> kf_rec_inSensor;
   std::vector<int> kf_rec_pureHit;
   std::vector<int> kf_rec_pureHit_approx;
+  std::vector<int> kf_neighbors;
+  std::vector<int> kf_inLC;
+  std::vector<int> kf_total_neighbors;
+  std::vector<float> kf_neighbors_energy;
 
   // Prop
 
@@ -240,6 +246,10 @@ private:
   std::vector<int> prop_rec_inSensor;
   std::vector<int> prop_rec_pureHit;
   std::vector<int> prop_rec_pureHit_approx;
+  std::vector<int> prop_neighbors;
+  std::vector<int> prop_inLC;
+  std::vector<int> prop_total_neighbors;
+  std::vector<float> prop_neighbors_energy;
 
     // RecHits
 
@@ -262,6 +272,10 @@ private:
   std::vector<int> rec_obj_id;
   std::vector<int> rec_pid;
   std::vector<int> rec_simcluster_id;
+  std::vector<int> rec_neighbors;
+  std::vector<int> rec_inLC;
+  std::vector<int> rec_total_neighbors;
+  std::vector<int> rec_neighbors_energy;
   //std::vector<float> rec_mask;
 
 
@@ -378,6 +392,10 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_obj_id", &rec_obj_id);
   tree->Branch("rec_pid", &rec_pid);
   tree->Branch("rec_simcluster_id", &rec_simcluster_id);
+  tree->Branch("rec_neighbors", &rec_neighbors);
+  tree->Branch("rec_inLC", &rec_inLC);
+  tree->Branch("rec_total_neighbors", &rec_total_neighbors);
+  tree->Branch("rec_neighbors_energy", &rec_neighbors_energy);
   //tree->Branch("rec_mask", &rec_mask);
 
   // KF
@@ -411,6 +429,10 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_rec_inSensor", &kf_rec_inSensor);
   tree->Branch("kf_rec_pureHit", &kf_rec_pureHit);
   tree->Branch("kf_rec_pureHit_approx", &kf_rec_pureHit_approx);
+  tree->Branch("kf_neighbors", &kf_neighbors);
+  tree->Branch("kf_inLC", &kf_inLC);
+  tree->Branch("kf_total_neighbors", &kf_total_neighbors);
+  tree->Branch("kf_neighbors_energy", &kf_neighbors_energy);
 
     // Prop
 
@@ -443,6 +465,10 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("prop_rec_inSensor", &prop_rec_inSensor);
   tree->Branch("prop_rec_pureHit", &prop_rec_pureHit);
   tree->Branch("prop_rec_pureHit_approx", &prop_rec_pureHit_approx);
+  tree->Branch("prop_neighbors", &prop_neighbors);
+  tree->Branch("prop_inLC", &prop_inLC);
+  tree->Branch("prop_total_neighbors", &prop_total_neighbors);
+  tree->Branch("prop_neighbors_energy", &prop_neighbors_energy);
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   setupDataToken_ = esConsumes<SetupData, SetupRecord>();
@@ -779,6 +805,10 @@ void Ntuplizer::clear_arrays(){
   rec_obj_id.clear();
   rec_pid.clear();
   rec_simcluster_id.clear();
+  rec_neighbors.clear();
+  rec_inLC.clear();
+  rec_total_neighbors.clear();
+  rec_neighbors_energy.clear();
   //rec_mask.clear();
 
   // KF
@@ -812,7 +842,10 @@ void Ntuplizer::clear_arrays(){
   kf_rec_inSensor.clear();
   kf_rec_pureHit.clear();
   kf_rec_pureHit_approx.clear();
-
+  kf_neighbors.clear();
+  kf_inLC.clear();
+  kf_total_neighbors.clear();
+  kf_neighbors_energy.clear();
   // Prop
 
   prop_x.clear();
@@ -844,7 +877,10 @@ void Ntuplizer::clear_arrays(){
   prop_rec_inSensor.clear();
   prop_rec_pureHit.clear();
   prop_rec_pureHit_approx.clear();
-
+  prop_neighbors.clear();
+  prop_inLC.clear();
+  prop_total_neighbors.clear();
+  prop_neighbors_energy.clear();
 }
 
 void Ntuplizer::fillHitMap(std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap,
@@ -879,6 +915,48 @@ std::vector<int> Ntuplizer::matchRecHit2CPRecHits(DetId detid_, std::vector<DetI
   return matchedIdxs;
 } // end of matchRecHit2CPRecHits
 
+
+std::vector<DetId> Ntuplizer::getNeighbors(DetId detid_,HGCalTopology& topoEE,HGCalTopology& topoHF,HGCalTopology& topoHB) const {
+  // Get neighbors of detid
+  std::vector<DetId> neighbors;
+  if (detid_.det() == 8){
+    neighbors = topoEE.neighbors(detid_);
+  } else if (detid_.det() == 9){
+    neighbors =  topoHF.neighbors(detid_);
+  } else if (detid_.det() == 10){
+    neighbors =  topoHB.neighbors(detid_);
+  }
+  return neighbors;
+}
+
+std::pair<int,double> Ntuplizer::getNeighborHitsAndEnergies(std::vector<DetId> neighbors, std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const {
+  std::pair<int,float> result;
+
+  // Check if neighboring detids are associated with a RecHit
+  int hitNeighbors = 0;
+  float totalEnergy = 0;
+
+  for (auto& neighbor: neighbors){
+    auto candidate = hitMap.find(neighbor);
+    if (candidate != hitMap.end()){
+      hitNeighbors++;
+      totalEnergy += candidate->second.first->energy();
+    }
+  }
+  result.first = hitNeighbors;
+  result.second = totalEnergy;
+  return result;
+}
+
+
+bool Ntuplizer::inLC(DetId detid_, std::vector<DetId>& lcs_detids) const {
+  auto hit_check = std::find(lcs_detids.begin(),lcs_detids.end(),detid_);
+  if (hit_check != lcs_detids.end()){
+    return true;
+  } else {
+    return false;
+  }
+}
 
 void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   using namespace edm;
@@ -918,6 +996,21 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(tracksToken_,tracks_h);
   const edm::View<reco::Track> & tkx = *(tracks_h.product()); 
 
+  edm::Handle<reco::CaloClusterCollection> layerClusterHandle;
+  iEvent.getByToken(hgcalLayerClustersToken_, layerClusterHandle);
+  const reco::CaloClusterCollection &lcs = *layerClusterHandle;
+
+  // Create LC map of RecHits
+  std::vector<DetId> lcs_detids;
+  for (const auto& it_lc : lcs) {
+    const std::vector<std::pair<DetId, float>> &hf = it_lc.hitsAndFractions();
+    // loop over the rechits of this specific layer cluster
+    for (unsigned int j = 0; j < hf.size(); j++) { 
+      DetId detid_ = hf[j].first;  
+      lcs_detids.push_back(detid_);
+    }
+  }
+
   // Match tracks to simtrack
   
   reco::RecoToSimCollection const* recSimCollP = nullptr;
@@ -932,6 +1025,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   TrackingParticleSelector tpSelector_ = TrackingParticleSelector(0, 100, 1.5, 3,120,280,0,true,false,false,false,{13});
   std::vector<int> signalIdx;
+
+
+
+
+  
 
   for (edm::View<reco::Track>::size_type i = 0; i < tkx.size(); ++i) {
     RefToBase<reco::Track> track(tracks_h, i);  
@@ -960,9 +1058,20 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   const CaloGeometry &geom = iSetup.getData(caloGeomToken_);
   recHitTools_.setGeometry(geom);
 
-  const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(DetId::Detector(10), ForwardSubdetector::ForwardEmpty);
-  auto geomEE = static_cast<const HGCalGeometry*>(subGeom);
-  const HGCalDDDConstants* ddd = &(geomEE->topology().dddConstants());
+  const CaloSubdetectorGeometry *geomHB = geom.getSubdetectorGeometry(DetId::Detector(10), ForwardSubdetector::ForwardEmpty);
+  auto subgeomHB = static_cast<const HGCalGeometry*>(geomHB);
+  auto topoHB = subgeomHB->topology();
+  const HGCalDDDConstants* ddd = &(subgeomHB->topology().dddConstants());
+
+  
+  const CaloSubdetectorGeometry *geomHF = geom.getSubdetectorGeometry(DetId::Detector(9), ForwardSubdetector::ForwardEmpty);
+  auto subgeomHF = static_cast<const HGCalGeometry*>(geomHF);
+  auto topoHF = subgeomHF->topology();
+
+  const CaloSubdetectorGeometry *geomEE = geom.getSubdetectorGeometry(DetId::Detector(8), ForwardSubdetector::ForwardEmpty);
+  auto subgeomEE = static_cast<const HGCalGeometry*>(geomEE);
+  auto topoEE = subgeomEE->topology();
+
   //auto radiusLayer = ddd->rangeRLayer(8, true);
   //// std::cout << radiusLayer.first << ", " << radiusLayer.second << std::endl;
 
@@ -1016,6 +1125,11 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_rec_inSensor = (pos=="KF")? kf_rec_inSensor:prop_rec_inSensor;
     auto &vec_rec_pureHit = (pos=="KF")? kf_rec_pureHit:prop_rec_pureHit;
     auto &vec_rec_pureHit_approx = (pos=="KF")? kf_rec_pureHit_approx:prop_rec_pureHit_approx;
+    auto &vec_neighbors = (pos=="KF")? kf_neighbors:prop_neighbors;
+    auto &vec_inLC = (pos=="KF")? kf_inLC:prop_inLC;
+    auto &vec_total_neighbors = (pos=="KF")? kf_total_neighbors:prop_total_neighbors;
+    auto &vec_neighbors_energy = (pos=="KF")? kf_neighbors_energy:prop_neighbors_energy;
+
 
     for(int i = 0;i<int(hits.size());i++){
       if (signalIdx[0] != hits[i].trackId) continue;
@@ -1059,6 +1173,23 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         tmp = "Sc";
       } 
 
+
+      // Neighbors
+      
+      int num_neighbors = -99;
+      float energy = -99;
+      int totalNeighbors = -99;
+      if (detid_ > 100){
+        auto neighbors = getNeighbors(detid_,topoEE,topoHF,topoHB);
+        auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
+        num_neighbors = neighbors_pair.first;
+        energy = neighbors_pair.second;
+        energy = e/energy;
+        totalNeighbors = neighbors.size();
+      }
+
+      // Check if in LC
+      bool inLC_ = inLC(detid_,lcs_detids);
 
       // KF 
       int rec_compatible=0;
@@ -1151,6 +1282,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       vec_rec_inSensor.push_back(rec_inSensor);
       vec_rec_pureHit.push_back(rec_pureHit);
       vec_rec_pureHit_approx.push_back(rec_pureHit_approx);
+      vec_neighbors.push_back(num_neighbors);
+      vec_inLC.push_back(inLC_);
+      vec_total_neighbors.push_back(totalNeighbors);
+      vec_neighbors_energy.push_back(energy);
     }
   }
   
@@ -1194,6 +1329,23 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           thickness = "None";
           tmp = "Sc";
         } 
+
+
+        // Neighbors
+        int num_neighbors = -99;
+        float energy = -99;
+        int totalNeighbors = -99;
+        if (detid_ > 100){
+          auto neighbors = getNeighbors(detid_,topoEE,topoHF,topoHB);
+          auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
+          num_neighbors = neighbors_pair.first;
+          energy = neighbors_pair.second;
+          energy = it_sc_hae.second/energy;
+          totalNeighbors = neighbors.size();
+        }
+        // Check if in LC
+        bool inLC_ = inLC(detid_,lcs_detids);
+
 
         // LocalError
         const CaloSubdetectorGeometry *subGeom = geom.getSubdetectorGeometry(detid_);
@@ -1259,7 +1411,6 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_kf_inSensor.push_back(kf_inSensor);
         sim_kf_pureHit.push_back(kf_pureHit);
         sim_kf_pureHit_approx.push_back(kf_pureHit_approx);
-
         sim_evt.push_back(eventnr);
         sim_obj_id.push_back(obj_id);
         sim_pid.push_back(pid);
@@ -1287,6 +1438,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_obj_id.push_back(obj_id);
           rec_pid.push_back(pid);
           rec_simcluster_id.push_back(simClusterId);
+          rec_neighbors.push_back(num_neighbors);
+          rec_inLC.push_back(inLC_);
+          rec_total_neighbors.push_back(totalNeighbors);
+          rec_neighbors_energy.push_back(energy);
           //rec_mask.push_back((itcheck->second));
 
         }
@@ -1339,6 +1494,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_obj_id.clear();
   rec_pid.clear();
   rec_simcluster_id.clear();
+  rec_neighbors.clear();
+  rec_inLC.clear();
+  rec_total_neighbors.clear();
+  rec_neighbors_energy.clear();
   //rec_mask.clear();
 
   // KF
@@ -1372,6 +1531,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_rec_inSensor.clear();
   kf_rec_pureHit.clear();
   kf_rec_pureHit_approx.clear();
+  kf_neighbors.clear();
+  kf_inLC.clear();
+  kf_total_neighbors.clear();
+  kf_neighbors_energy.clear();
   
   // Prop
 
@@ -1404,6 +1567,10 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   prop_rec_inSensor.clear();
   prop_rec_pureHit.clear();
   prop_rec_pureHit_approx.clear();
+  prop_neighbors.clear();
+  prop_inLC.clear();
+  prop_total_neighbors.clear();
+  prop_neighbors_energy.clear();
 
   //clear_arrays();
   // eventnr=eventnr+1;
