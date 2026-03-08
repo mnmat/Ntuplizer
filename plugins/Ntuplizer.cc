@@ -1184,7 +1184,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
         num_neighbors = neighbors_pair.first;
         energy = neighbors_pair.second;
-        energy = e/energy;
+        //energy = e/energy;
         totalNeighbors = neighbors.size();
       }
 
@@ -1340,7 +1340,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
           num_neighbors = neighbors_pair.first;
           energy = neighbors_pair.second;
-          energy = it_sc_hae.second/energy;
+          //energy = it_sc_hae.second/energy;
           totalNeighbors = neighbors.size();
         }
         // Check if in LC
