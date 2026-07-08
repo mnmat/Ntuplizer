@@ -145,7 +145,7 @@ private:
   bool check_intersection_ellipse_point(float axis, float p);
   bool check_intersection(std::pair<float,float> eigenvalues, AlgebraicVector2 p1, AlgebraicVector2 p2);
   std::vector<DetId> getNeighbors(DetId detid_,HGCalTopology& topoEE, HGCalTopology& topoFH, HGCalTopology& topoBH) const;
-  std::pair<int,double> getNeighborHitsAndEnergies(std::vector<DetId> neighbors, std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const;
+  std::pair<std::pair<int, double>, std::array<double,8>> getNeighborHitsAndEnergies(std::vector<DetId> neighbors, std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const;
   bool inLC(DetId detid_, std::vector<DetId>& lcdetids) const;
   
   hgcal::RecHitTools recHitTools_;
@@ -213,6 +213,15 @@ private:
   std::vector<int> kf_inLC;
   std::vector<int> kf_total_neighbors;
   std::vector<float> kf_neighbors_energy;
+  std::vector<double> kf_neighbor_1_cell_energy;
+  std::vector<double> kf_neighbor_2_cell_energy;
+  std::vector<double> kf_neighbor_3_cell_energy;
+  std::vector<double> kf_neighbor_4_cell_energy;
+  std::vector<double> kf_neighbor_5_cell_energy;
+  std::vector<double> kf_neighbor_6_cell_energy;
+  std::vector<double> kf_neighbor_7_cell_energy;
+  std::vector<double> kf_neighbor_8_cell_energy;
+
 
   // Prop
 
@@ -250,6 +259,14 @@ private:
   std::vector<int> prop_inLC;
   std::vector<int> prop_total_neighbors;
   std::vector<float> prop_neighbors_energy;
+  std::vector<double> prop_neighbor_1_cell_energy;
+  std::vector<double> prop_neighbor_2_cell_energy;
+  std::vector<double> prop_neighbor_3_cell_energy;
+  std::vector<double> prop_neighbor_4_cell_energy;
+  std::vector<double> prop_neighbor_5_cell_energy;
+  std::vector<double> prop_neighbor_6_cell_energy;
+  std::vector<double> prop_neighbor_7_cell_energy;
+  std::vector<double> prop_neighbor_8_cell_energy;
 
     // RecHits
 
@@ -276,6 +293,16 @@ private:
   std::vector<int> rec_inLC;
   std::vector<int> rec_total_neighbors;
   std::vector<int> rec_neighbors_energy;
+  std::vector<double> rec_neighbor_1_cell_energy;
+  std::vector<double> rec_neighbor_2_cell_energy;
+  std::vector<double> rec_neighbor_3_cell_energy;
+  std::vector<double> rec_neighbor_4_cell_energy;
+  std::vector<double> rec_neighbor_5_cell_energy;
+  std::vector<double> rec_neighbor_6_cell_energy;
+  std::vector<double> rec_neighbor_7_cell_energy;
+  std::vector<double> rec_neighbor_8_cell_energy;
+
+
   //std::vector<float> rec_mask;
 
 
@@ -396,6 +423,14 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("rec_inLC", &rec_inLC);
   tree->Branch("rec_total_neighbors", &rec_total_neighbors);
   tree->Branch("rec_neighbors_energy", &rec_neighbors_energy);
+  tree->Branch("rec_neighbor_1_cell_energy", &rec_neighbor_1_cell_energy);
+  tree->Branch("rec_neighbor_2_cell_energy", &rec_neighbor_2_cell_energy);
+  tree->Branch("rec_neighbor_3_cell_energy", &rec_neighbor_3_cell_energy);
+  tree->Branch("rec_neighbor_4_cell_energy", &rec_neighbor_4_cell_energy);
+  tree->Branch("rec_neighbor_5_cell_energy", &rec_neighbor_5_cell_energy);
+  tree->Branch("rec_neighbor_6_cell_energy", &rec_neighbor_6_cell_energy);
+  tree->Branch("rec_neighbor_7_cell_energy", &rec_neighbor_7_cell_energy);
+  tree->Branch("rec_neighbor_8_cell_energy", &rec_neighbor_8_cell_energy);
   //tree->Branch("rec_mask", &rec_mask);
 
   // KF
@@ -433,7 +468,14 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("kf_inLC", &kf_inLC);
   tree->Branch("kf_total_neighbors", &kf_total_neighbors);
   tree->Branch("kf_neighbors_energy", &kf_neighbors_energy);
-
+  tree->Branch("kf_neighbor_1_cell_energy", &kf_neighbor_1_cell_energy);
+  tree->Branch("kf_neighbor_2_cell_energy", &kf_neighbor_2_cell_energy);
+  tree->Branch("kf_neighbor_3_cell_energy", &kf_neighbor_3_cell_energy);
+  tree->Branch("kf_neighbor_4_cell_energy", &kf_neighbor_4_cell_energy);
+  tree->Branch("kf_neighbor_5_cell_energy", &kf_neighbor_5_cell_energy);
+  tree->Branch("kf_neighbor_6_cell_energy", &kf_neighbor_6_cell_energy);
+  tree->Branch("kf_neighbor_7_cell_energy", &kf_neighbor_7_cell_energy);
+  tree->Branch("kf_neighbor_8_cell_energy", &kf_neighbor_8_cell_energy);
     // Prop
 
   tree->Branch("prop_x", &prop_x);
@@ -469,6 +511,14 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig) :
   tree->Branch("prop_inLC", &prop_inLC);
   tree->Branch("prop_total_neighbors", &prop_total_neighbors);
   tree->Branch("prop_neighbors_energy", &prop_neighbors_energy);
+  tree->Branch("prop_neighbor_1_cell_energy", &prop_neighbor_1_cell_energy);
+  tree->Branch("prop_neighbor_2_cell_energy", &prop_neighbor_2_cell_energy);
+  tree->Branch("prop_neighbor_3_cell_energy", &prop_neighbor_3_cell_energy);
+  tree->Branch("prop_neighbor_4_cell_energy", &prop_neighbor_4_cell_energy);
+  tree->Branch("prop_neighbor_5_cell_energy", &prop_neighbor_5_cell_energy);
+  tree->Branch("prop_neighbor_6_cell_energy", &prop_neighbor_6_cell_energy);
+  tree->Branch("prop_neighbor_7_cell_energy", &prop_neighbor_7_cell_energy);
+  tree->Branch("prop_neighbor_8_cell_energy", &prop_neighbor_8_cell_energy);
 
 #ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
   setupDataToken_ = esConsumes<SetupData, SetupRecord>();
@@ -809,6 +859,15 @@ void Ntuplizer::clear_arrays(){
   rec_inLC.clear();
   rec_total_neighbors.clear();
   rec_neighbors_energy.clear();
+  rec_neighbor_1_cell_energy.clear();
+  rec_neighbor_2_cell_energy.clear();
+  rec_neighbor_3_cell_energy.clear();
+  rec_neighbor_4_cell_energy.clear();
+  rec_neighbor_5_cell_energy.clear();
+  rec_neighbor_6_cell_energy.clear();
+  rec_neighbor_7_cell_energy.clear();
+  rec_neighbor_8_cell_energy.clear();
+
   //rec_mask.clear();
 
   // KF
@@ -846,6 +905,14 @@ void Ntuplizer::clear_arrays(){
   kf_inLC.clear();
   kf_total_neighbors.clear();
   kf_neighbors_energy.clear();
+  kf_neighbor_1_cell_energy.clear();
+  kf_neighbor_2_cell_energy.clear();
+  kf_neighbor_3_cell_energy.clear();
+  kf_neighbor_4_cell_energy.clear();
+  kf_neighbor_5_cell_energy.clear();
+  kf_neighbor_6_cell_energy.clear();
+  kf_neighbor_7_cell_energy.clear();
+  kf_neighbor_8_cell_energy.clear();
   // Prop
 
   prop_x.clear();
@@ -881,6 +948,14 @@ void Ntuplizer::clear_arrays(){
   prop_inLC.clear();
   prop_total_neighbors.clear();
   prop_neighbors_energy.clear();
+  prop_neighbor_1_cell_energy.clear();
+  prop_neighbor_2_cell_energy.clear();
+  prop_neighbor_3_cell_energy.clear();
+  prop_neighbor_4_cell_energy.clear();
+  prop_neighbor_5_cell_energy.clear();
+  prop_neighbor_6_cell_energy.clear();
+  prop_neighbor_7_cell_energy.clear();
+  prop_neighbor_8_cell_energy.clear();
 }
 
 void Ntuplizer::fillHitMap(std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap,
@@ -929,24 +1004,36 @@ std::vector<DetId> Ntuplizer::getNeighbors(DetId detid_,HGCalTopology& topoEE,HG
   return neighbors;
 }
 
-std::pair<int,double> Ntuplizer::getNeighborHitsAndEnergies(std::vector<DetId> neighbors, std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const {
-  std::pair<int,float> result;
+#include <array>
 
-  // Check if neighboring detids are associated with a RecHit
-  int hitNeighbors = 0;
-  float totalEnergy = 0;
+std::pair<std::pair<int, double>, std::array<double,8>>
+Ntuplizer::getNeighborHitsAndEnergies(
+    std::vector<DetId> neighbors,
+    std::map<DetId, std::pair<const HGCRecHit*, float>>& hitMap) const {
 
-  for (auto& neighbor: neighbors){
-    auto candidate = hitMap.find(neighbor);
-    if (candidate != hitMap.end()){
-      hitNeighbors++;
-      totalEnergy += candidate->second.first->energy();
+    std::pair<int, double> result;
+    std::array<double,8> neighborEnergies{};
+    int hitNeighbors = 0;
+    double totalEnergy = 0.0;
+    int i = 0;
+
+    for (auto& neighbor : neighbors) {
+        if (i >= 8) break; // Ensure we don't exceed the array size
+        auto candidate = hitMap.find(neighbor);
+        if (candidate != hitMap.end()) {
+            hitNeighbors++;
+            double energy = candidate->second.first->energy();
+            totalEnergy += energy;
+            neighborEnergies[i] = energy;
+        }
+        i++;
     }
-  }
-  result.first = hitNeighbors;
-  result.second = totalEnergy;
-  return result;
+
+    result.first = hitNeighbors;
+    result.second = totalEnergy;
+    return {result, neighborEnergies};
 }
+
 
 
 bool Ntuplizer::inLC(DetId detid_, std::vector<DetId>& lcs_detids) const {
@@ -1129,6 +1216,14 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_inLC = (pos=="KF")? kf_inLC:prop_inLC;
     auto &vec_total_neighbors = (pos=="KF")? kf_total_neighbors:prop_total_neighbors;
     auto &vec_neighbors_energy = (pos=="KF")? kf_neighbors_energy:prop_neighbors_energy;
+    auto &vec_neighbor_1_cell_energy = (pos=="KF")? kf_neighbor_1_cell_energy:prop_neighbor_1_cell_energy;
+    auto &vec_neighbor_2_cell_energy = (pos=="KF")? kf_neighbor_2_cell_energy:prop_neighbor_2_cell_energy;
+    auto &vec_neighbor_3_cell_energy = (pos=="KF")? kf_neighbor_3_cell_energy:prop_neighbor_3_cell_energy;
+    auto &vec_neighbor_4_cell_energy = (pos=="KF")? kf_neighbor_4_cell_energy:prop_neighbor_4_cell_energy;
+    auto &vec_neighbor_5_cell_energy = (pos=="KF")? kf_neighbor_5_cell_energy:prop_neighbor_5_cell_energy;
+    auto &vec_neighbor_6_cell_energy = (pos=="KF")? kf_neighbor_6_cell_energy:prop_neighbor_6_cell_energy;
+    auto &vec_neighbor_7_cell_energy = (pos=="KF")? kf_neighbor_7_cell_energy:prop_neighbor_7_cell_energy;
+    auto &vec_neighbor_8_cell_energy = (pos=="KF")? kf_neighbor_8_cell_energy:prop_neighbor_8_cell_energy;
 
 
     for(int i = 0;i<int(hits.size());i++){
@@ -1179,11 +1274,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       int num_neighbors = -99;
       float energy = -99;
       int totalNeighbors = -99;
+      std::array<double,8> neighbor_energies;
       if (detid_ > 100){
         auto neighbors = getNeighbors(detid_,topoEE,topoHF,topoHB);
         auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
-        num_neighbors = neighbors_pair.first;
-        energy = neighbors_pair.second;
+        num_neighbors = neighbors_pair.first.first;
+        energy = neighbors_pair.first.second;
+        neighbor_energies = neighbors_pair.second;
         //energy = e/energy;
         totalNeighbors = neighbors.size();
       }
@@ -1286,6 +1383,15 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       vec_inLC.push_back(inLC_);
       vec_total_neighbors.push_back(totalNeighbors);
       vec_neighbors_energy.push_back(energy);
+
+      vec_neighbor_1_cell_energy.push_back(neighbor_energies[0]);
+      vec_neighbor_2_cell_energy.push_back(neighbor_energies[1]);
+      vec_neighbor_3_cell_energy.push_back(neighbor_energies[2]);
+      vec_neighbor_4_cell_energy.push_back(neighbor_energies[3]);
+      vec_neighbor_5_cell_energy.push_back(neighbor_energies[4]);
+      vec_neighbor_6_cell_energy.push_back(neighbor_energies[5]);
+      vec_neighbor_7_cell_energy.push_back(neighbor_energies[6]);
+      vec_neighbor_8_cell_energy.push_back(neighbor_energies[7]);
     }
   }
   
@@ -1335,11 +1441,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         int num_neighbors = -99;
         float energy = -99;
         int totalNeighbors = -99;
+        std::array<double,8> neighbor_energies{};
         if (detid_ > 100){
           auto neighbors = getNeighbors(detid_,topoEE,topoHF,topoHB);
           auto neighbors_pair = getNeighborHitsAndEnergies(neighbors, hitMap);
-          num_neighbors = neighbors_pair.first;
-          energy = neighbors_pair.second;
+          num_neighbors = neighbors_pair.first.first;
+          energy = neighbors_pair.first.second;
+          neighbor_energies = neighbors_pair.second;
           //energy = it_sc_hae.second/energy;
           totalNeighbors = neighbors.size();
         }
@@ -1442,6 +1550,16 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_inLC.push_back(inLC_);
           rec_total_neighbors.push_back(totalNeighbors);
           rec_neighbors_energy.push_back(energy);
+
+          rec_neighbor_1_cell_energy.push_back(neighbor_energies[0]);
+          rec_neighbor_2_cell_energy.push_back(neighbor_energies[1]);
+          rec_neighbor_3_cell_energy.push_back(neighbor_energies[2]);
+          rec_neighbor_4_cell_energy.push_back(neighbor_energies[3]);
+          rec_neighbor_5_cell_energy.push_back(neighbor_energies[4]);
+          rec_neighbor_6_cell_energy.push_back(neighbor_energies[5]);
+          rec_neighbor_7_cell_energy.push_back(neighbor_energies[6]);
+          rec_neighbor_8_cell_energy.push_back(neighbor_energies[7]);
+
           //rec_mask.push_back((itcheck->second));
 
         }
@@ -1498,6 +1616,14 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   rec_inLC.clear();
   rec_total_neighbors.clear();
   rec_neighbors_energy.clear();
+  rec_neighbor_1_cell_energy.clear();
+  rec_neighbor_2_cell_energy.clear();
+  rec_neighbor_3_cell_energy.clear();
+  rec_neighbor_4_cell_energy.clear();
+  rec_neighbor_5_cell_energy.clear();
+  rec_neighbor_6_cell_energy.clear();
+  rec_neighbor_7_cell_energy.clear();
+  rec_neighbor_8_cell_energy.clear();
   //rec_mask.clear();
 
   // KF
@@ -1535,7 +1661,14 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   kf_inLC.clear();
   kf_total_neighbors.clear();
   kf_neighbors_energy.clear();
-  
+  kf_neighbor_1_cell_energy.clear();
+  kf_neighbor_2_cell_energy.clear();
+  kf_neighbor_3_cell_energy.clear();
+  kf_neighbor_4_cell_energy.clear();
+  kf_neighbor_5_cell_energy.clear();
+  kf_neighbor_6_cell_energy.clear();
+  kf_neighbor_7_cell_energy.clear();
+  kf_neighbor_8_cell_energy.clear();
   // Prop
 
   prop_x.clear();
@@ -1571,7 +1704,14 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   prop_inLC.clear();
   prop_total_neighbors.clear();
   prop_neighbors_energy.clear();
-
+  prop_neighbor_1_cell_energy.clear();
+  prop_neighbor_2_cell_energy.clear();
+  prop_neighbor_3_cell_energy.clear();
+  prop_neighbor_4_cell_energy.clear();
+  prop_neighbor_5_cell_energy.clear();
+  prop_neighbor_6_cell_energy.clear();
+  prop_neighbor_7_cell_energy.clear();
+  prop_neighbor_8_cell_energy.clear();
   //clear_arrays();
   // eventnr=eventnr+1;
 
