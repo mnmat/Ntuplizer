@@ -1312,7 +1312,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
         }
         else {
-          closest_detid = testgeom->getClosestCellHex(gp, false);
+          closest_detid = testgeom->getClosestCellHex(gp, false, false);
           // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
         }
         if(detid_==closest_detid){
@@ -1414,12 +1414,17 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     int simClusterId = 0;
     for (const auto& it_simc : simclusters){
       const SimCluster& simc = (*(it_simc));
-      const auto& sc_hae = simc.hits_and_energies();
+      const auto& sc_haf = simc.hits_and_fractions();
 
-      for (const auto& it_sc_hae : sc_hae){
+      for (const auto& it_sc_haf : sc_haf){
 
-        DetId detid_ = (it_sc_hae.first);
+        DetId detid_ = (it_sc_haf.first);
         std::map<DetId,std::pair<const HGCRecHit *, float>>::const_iterator itcheck = hitMap.find(detid_);
+        float e = 0;
+        if (itcheck != hitMap.end()){
+          e = hitMap[detid_].first->energy();
+        }
+        
         unsigned int layer_ = recHitTools_.getLayerWithOffset(detid_);
 
         std::string detector;
@@ -1479,7 +1484,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           auto gp = map_gps_kf[layer];
           auto cov = map_cov_kf[layer];
           if (detector == "Sc") closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCell(gp);
-          else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true);
+          else closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_))->getClosestCellHex(gp, true, false);
           if(detid_==closest_detid){
             kf_contained=1;
           }
@@ -1507,7 +1512,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         sim_x.push_back(recHitTools_.getPosition(detid_).x());
         sim_y.push_back(recHitTools_.getPosition(detid_).y());
         sim_z.push_back(recHitTools_.getPosition(detid_).z());
-        sim_e.push_back(it_sc_hae.second);
+        sim_e.push_back(it_sc_haf.second*e);
         sim_detid.push_back(detid_);
         sim_layer.push_back(layer_);
         sim_dtype.push_back(tmp);
@@ -1530,7 +1535,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
           rec_x.push_back(recHitTools_.getPosition(detid_).x());
           rec_y.push_back(recHitTools_.getPosition(detid_).y());
           rec_z.push_back(recHitTools_.getPosition(detid_).z());
-          rec_e.push_back(it_sc_hae.second);
+          rec_e.push_back(it_sc_haf.second*e);
           rec_detid.push_back(detid_);
           rec_layer.push_back(layer_);
           rec_dtype.push_back(tmp);
