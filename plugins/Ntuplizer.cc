@@ -1110,7 +1110,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   iEvent.getByToken(simVerticesToken_, simVerticesHandle);
   std::vector<SimVertex> const& simVertices = *simVerticesHandle;
 
-  TrackingParticleSelector tpSelector_ = TrackingParticleSelector(0, 100, 1.5, 3,120,280,0,true,false,false,false,{13});
+  TrackingParticleSelector tpSelector_ = TrackingParticleSelector(0, 100, -3, 3,120,280,0,true,false,false,false,{13});
   std::vector<int> signalIdx;
 
 
@@ -1132,7 +1132,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
 
   if (signalIdx.size()==0){
-    // std::cout << "No Signal found!!!!!!" << std::endl;
+    std::cout << "No Signal found!!!!!!" << std::endl;
     return;
   }
 
@@ -1396,7 +1396,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
   
   // Define CP selector
-  CaloParticleSelector cpSelector_ = CaloParticleSelector(0, 100, 1.5, 3,120,280,0,1000000,true,false,false,false,false,{13},-3.2,3.2);
+  CaloParticleSelector cpSelector_ = CaloParticleSelector(0, 100, -3, 3,120,280,0,1000000,true,false,false,false,false,{13},-3.2,3.2);
 
   // Loop over Caloparticles 
 
