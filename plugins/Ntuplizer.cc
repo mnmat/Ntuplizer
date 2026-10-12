@@ -1225,10 +1225,13 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     auto &vec_neighbor_7_cell_energy = (pos=="KF")? kf_neighbor_7_cell_energy:prop_neighbor_7_cell_energy;
     auto &vec_neighbor_8_cell_energy = (pos=="KF")? kf_neighbor_8_cell_energy:prop_neighbor_8_cell_energy;
 
+    std::cout << pos << " - Ntuplizer # Hits: " << hits.size() << std::endl;
 
     for(int i = 0;i<int(hits.size());i++){
-      if (signalIdx[0] != hits[i].trackId) continue;
-
+      if (signalIdx[0] != hits[i].trackId){
+        std::cout << "No signal found" << std::endl;
+        continue;
+      }
       std::map<DetId,std::pair<const HGCRecHit *,float>>::const_iterator itcheck = hitMap.find(hits[i].detid);
       float e = 0;
       if (itcheck != hitMap.end()){
@@ -1243,20 +1246,29 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       // TODO: if conditions necessary to deal with missing rechits. Not yet possible to determine area of detector properly
       //       Implement it in such a way that we can find the closest detid and from this determine silicon thickness.
       auto detid_ = hits[i].detid;
-      if (detid_==0){
-        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
-        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
-        detector = "Sc";
+      auto testgeom = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
+      std::cout << detid_ << std::endl;
+
+
+      if (!testgeom->present(detid_)){
+        detector = "None";
         thickness = "None";
-        tmp = "Sc";
+        tmp = "None";
       }
-      else if((detid_==8)||(detid_==9)){
-        //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
-        //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
-        detector = "Si";
-        //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
-        tmp = detector;
-      }
+      // if (detid_==0){
+      //   //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(0))->getClosestCell(hits[i].center);
+      //   //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+      //   detector = "Sc";
+      //   thickness = "None";
+      //   tmp = "Sc";
+      // }
+      // else if((detid_==8)||(detid_==9)){
+      //   //auto closest_detid = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(hits[i].detid))->getClosestCellHex(hits[i].center,true);
+      //   //layer_ = recHitTools_.getLayerWithOffset(closest_detid); // Can get rid of this in future iterations as I read it out in KFHits anyway
+      //   detector = "Si";
+      //   //thickness = std::to_string(int(recHitTools_.getSiThickness(closest_detid))); 
+      //   tmp = detector;
+      // }
       else if (recHitTools_.isSilicon(detid_)){
         detector = "Si";
         thickness = std::to_string(int(recHitTools_.getSiThickness(hits[i].detid))); 
@@ -1294,47 +1306,51 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       int rec_inSensor=0;
       int rec_pureHit=0;
       int rec_pureHit_approx=0;
+
       if (detid_ > 10){
-        rec_compatible = 1;
-        int layer = recHitTools_.getLayerWithOffset(detid_);
+        if (testgeom->present(detid_)){
+          rec_compatible = 1;
+          int layer = recHitTools_.getLayerWithOffset(detid_);
 
-        //
-        DetId closest_detid;
-        auto gp = hits[i].center;
-        AlgebraicSymMatrix22 covariance_matrix;
-        covariance_matrix[0][0] = hits[i].xx;
-        covariance_matrix[0][1] = hits[i].xy;
-        covariance_matrix[1][1] = hits[i].yy;
-        [[maybe_unused]] auto cov = AlgebraicSymMatrix22(covariance_matrix);
-        auto testgeom = static_cast<const HGCalGeometry*>(recHitTools_.getSubdetectorGeometry(detid_));
-        if (detector == "Sc"){
-          closest_detid = testgeom->getClosestCell(gp);
-          // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
-        }
-        else {
-          closest_detid = testgeom->getClosestCellHex(gp, false, false);
-          // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
-        }
-        if(detid_==closest_detid){
-          rec_isclosest=1;
-        }
-
-        // std::cout << "TSOS conditions" << std::endl;
-        // std::cout << "Closest DetId: " << closest_detid.rawId() << ", Det: " << closest_detid.det() << ", Subdet: " << closest_detid.subdetId() << std::endl;
-        // std::cout << "DetId: " << DetId(detid_).rawId() << ", Det: " << DetId(detid_).det() << ", Subdet: " << DetId(detid_).subdetId() << std::endl;
-
-        if (inSensorCell(detid_, gp)){
-          rec_inSensor=1;
-          if (isPureHit(detid_,gp,cov)){
-            rec_pureHit=1;
+          //
+          DetId closest_detid;
+          auto gp = hits[i].center;
+          AlgebraicSymMatrix22 covariance_matrix;
+          covariance_matrix[0][0] = hits[i].xx;
+          covariance_matrix[0][1] = hits[i].xy;
+          covariance_matrix[1][1] = hits[i].yy;
+          [[maybe_unused]] auto cov = AlgebraicSymMatrix22(covariance_matrix);
+          if (detector == "Sc"){
+            closest_detid = testgeom->getClosestCell(gp);
+            // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
           }
-          if (isPureHit_approx(detid_,gp,cov)){
-            rec_pureHit_approx=1;
+          else {
+            closest_detid = testgeom->getClosestCellHex(gp, false, false);
+            // std::cout << "In geometry? " << testgeom->present(closest_detid) << std::endl;
+          }
+          if(detid_==closest_detid){
+            rec_isclosest=1;
+          }
+
+          // std::cout << "TSOS conditions" << std::endl;
+          // std::cout << "Closest DetId: " << closest_detid.rawId() << ", Det: " << closest_detid.det() << ", Subdet: " << closest_detid.subdetId() << std::endl;
+          // std::cout << "DetId: " << DetId(detid_).rawId() << ", Det: " << DetId(detid_).det() << ", Subdet: " << DetId(detid_).subdetId() << std::endl;
+
+
+          std::cout << testgeom->present(detid_) << std::endl;
+          if (inSensorCell(detid_, gp)){
+            rec_inSensor=1;
+            if (isPureHit(detid_,gp,cov)){
+              rec_pureHit=1;
+            }
+            if (isPureHit_approx(detid_,gp,cov)){
+              rec_pureHit_approx=1;
+            }
           }
         }
       }
 
-      if (hits[i].detid > 10){
+      if (testgeom->present(detid_)){
         vec_meas_x.push_back(recHitTools_.getPosition(hits[i].detid).x());
         vec_meas_y.push_back(recHitTools_.getPosition(hits[i].detid).y());
         vec_meas_z.push_back(recHitTools_.getPosition(hits[i].detid).z());
@@ -1392,6 +1408,7 @@ void Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       vec_neighbor_6_cell_energy.push_back(neighbor_energies[5]);
       vec_neighbor_7_cell_energy.push_back(neighbor_energies[6]);
       vec_neighbor_8_cell_energy.push_back(neighbor_energies[7]);
+      std::cout << pos << " - Ntuplizer: Pushback, Layer: " << hits[i].layer << std::endl;
     }
   }
   
